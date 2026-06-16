@@ -51,8 +51,8 @@ export function SidebarNav({
         </div>
         {!collapsed && (
           <div className="leading-tight">
-            <p className="text-sm font-semibold text-sidebar-foreground">Colucci</p>
-            <p className="text-xs text-muted-foreground">Meta Ads Hub</p>
+            <p className="text-sm font-semibold text-sidebar-foreground">Garcia&apos;s</p>
+            <p className="text-xs text-muted-foreground">Gestão de Tráfego</p>
           </div>
         )}
       </div>

@@ -106,7 +106,7 @@ export function AuthScreens() {
             <Sparkles className="size-5" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Dashboard Colucci</h1>
+            <h1 className="text-lg font-semibold text-foreground">Garcia&apos;s Gestão de Tráfego</h1>
             <p className="text-sm text-muted-foreground">Gestão multi-conta Meta Ads</p>
           </div>
         </div>

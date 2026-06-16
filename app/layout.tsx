@@ -10,7 +10,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Dashboard Colucci — Gestão Meta Ads',
+  title: "Garcia's Gestão de Tráfego — Meta Ads",
   description: 'Painel analítico multi-conta para gestão de campanhas Meta Ads',
   generator: 'v0.app',
   icons: {
