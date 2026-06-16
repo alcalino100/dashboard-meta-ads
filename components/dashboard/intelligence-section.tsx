@@ -1,152 +1,142 @@
 "use client"
 
-import { Trophy, AlertOctagon, Sparkles, Lightbulb } from "lucide-react"
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
+import { Lightbulb, Plug, ArrowRight, TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { ranking, heatmap, recommendations, insights } from "@/lib/mock-data"
-import { fmtCurrency } from "@/lib/format"
+import { useStatus } from "@/lib/use-meta"
 
-const best = ranking.slice(0, 5)
-const worst = [...ranking].reverse().slice(0, 5)
+type Priority = "Alta" | "Média" | "Baixa"
 
-const prioCfg = {
-  high: { label: "Alta", cls: "bg-destructive/15 text-destructive", dot: "bg-destructive" },
-  medium: { label: "Média", cls: "bg-warning/15 text-warning", dot: "bg-warning" },
-  low: { label: "Baixa", cls: "bg-secondary text-secondary-foreground", dot: "bg-muted-foreground" },
+const priorityConfig: Record<Priority, { cls: string; dot: string }> = {
+  Alta: { cls: "bg-destructive/15 text-destructive border-destructive/20", dot: "bg-destructive" },
+  Média: { cls: "bg-warning/15 text-warning border-warning/20", dot: "bg-warning" },
+  Baixa: { cls: "bg-secondary text-secondary-foreground border-border", dot: "bg-muted-foreground" },
 }
 
-function heatColor(score: number) {
-  if (score >= 80) return "bg-success/80 text-background"
-  if (score >= 60) return "bg-success/45 text-foreground"
-  if (score >= 45) return "bg-warning/45 text-foreground"
-  return "bg-destructive/40 text-foreground"
+type Rec = {
+  id: string
+  title: string
+  account: string
+  priority: Priority
+  trend: "up" | "down" | "neutral"
 }
 
-function RankList({ data, best }: { data: typeof ranking; best: boolean }) {
+// Apenas exibidas quando há conexão ativa com dados reais
+const MOCK_RECS: Rec[] = [
+  { id: "1", title: "Pausar 'Conversões Studio Remarketing' — sem entrega há 6h e gasto acelerado.", account: "Studio Bella", priority: "Alta", trend: "down" },
+  { id: "2", title: "Revisar criativo de 'Mensagens Colucci Aquisição' — custo por mensagem 63% acima da meta.", account: "Colucci Joias", priority: "Alta", trend: "down" },
+  { id: "3", title: "Realocar orçamento de Móveis Norte para campanhas com CTR acima de 1,8%.", account: "Móveis Norte", priority: "Média", trend: "up" },
+  { id: "4", title: "Reduzir frequência em 'Alcance Vitta' — saturação de público em 7 dias.", account: "Clínica Vitta", priority: "Média", trend: "neutral" },
+  { id: "5", title: "Testar novos públicos lookalike para escalar campanhas eficientes.", account: "Colucci Joias", priority: "Baixa", trend: "up" },
+]
+
+function TrendIcon({ trend }: { trend: Rec["trend"] }) {
+  if (trend === "up") return <TrendingUp className="size-3.5 text-success" />
+  if (trend === "down") return <TrendingDown className="size-3.5 text-destructive" />
+  return <Minus className="size-3.5 text-muted-foreground" />
+}
+
+function EmptyState({ onGoToIntegrations }: { onGoToIntegrations?: () => void }) {
   return (
-    <ol className="flex flex-col gap-2">
-      {data.map((c, i) => (
-        <li key={c.name} className="flex items-center gap-3 rounded-md border border-border p-2.5">
-          <span className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-            best ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive",
-          )}>{i + 1}</span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-foreground">{c.name}</p>
-            <p className="text-xs text-muted-foreground">{c.account}</p>
+    <div className="flex flex-col items-center gap-4 py-16 text-center">
+      <div className="flex size-14 items-center justify-center rounded-full border border-border bg-muted/40">
+        <Plug className="size-6 text-muted-foreground" />
+      </div>
+      <div className="max-w-sm">
+        <p className="text-base font-semibold text-foreground">Nenhuma conta conectada</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          As recomendações de inteligência são geradas a partir dos seus dados reais do Meta Ads.
+          Conecte pelo menos uma conta para começar a receber insights.
+        </p>
+      </div>
+      <Button
+        variant="outline"
+        className="gap-2"
+        onClick={onGoToIntegrations}
+      >
+        <Plug className="size-4" />
+        Ir para Integrações
+        <ArrowRight className="size-4" />
+      </Button>
+      <div className="mt-2 grid max-w-md gap-2 text-left">
+        {[
+          "Anomalias de gasto e entrega em tempo real",
+          "Campanhas com custo por resultado acima da meta",
+          "Públicos saturados e criativos com queda de performance",
+          "Oportunidades de escala por CTR e ROAS",
+        ].map((item) => (
+          <div key={item} className="flex items-start gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+            <Lightbulb className="mt-0.5 size-3.5 shrink-0 text-primary" />
+            <p className="text-xs text-muted-foreground">{item}</p>
           </div>
-          <div className="shrink-0 text-right">
-            <p className="text-sm font-semibold tabular-nums text-foreground">{fmtCurrency(c.costPerMsg)}</p>
-            <p className="text-xs text-muted-foreground">por msg</p>
-          </div>
-        </li>
-      ))}
-    </ol>
+        ))}
+      </div>
+    </div>
   )
 }
 
-export function IntelligenceSection() {
-  const objectives = heatmap[0].values.map((v) => v.objective)
+function RecList({ recs }: { recs: Rec[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      {recs.map((r) => {
+        const cfg = priorityConfig[r.priority]
+        return (
+          <div
+            key={r.id}
+            className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <span className={cn("mt-1 size-2 shrink-0 rounded-full", cfg.dot)} />
+              <div className="min-w-0">
+                <p className="text-sm text-foreground">{r.title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{r.account}</p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <TrendIcon trend={r.trend} />
+              <span className={cn("inline-block rounded border px-2 py-0.5 text-xs font-medium", cfg.cls)}>
+                {r.priority}
+              </span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export function IntelligenceSection({ onGoToIntegrations }: { onGoToIntegrations?: () => void }) {
+  const { data: status, isLoading } = useStatus()
+  const connected = status?.connected === true
+
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Centro de inteligência</h2>
-        <p className="text-sm text-muted-foreground">Rankings, eficiência por objetivo e recomendações priorizadas</p>
+        <h2 className="text-lg font-semibold text-foreground">Inteligência</h2>
+        <p className="text-sm text-muted-foreground">Recomendações geradas a partir dos dados reais das suas contas</p>
       </div>
 
-      {/* Insights automáticos */}
-      <div className="grid gap-3 md:grid-cols-3">
-        {insights.map((text, i) => (
-          <Card key={i} className="p-0">
-            <CardContent className="flex gap-2.5 p-4">
-              <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
-              <p className="text-sm text-foreground">{text}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Rankings */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="flex-row items-center gap-2">
-            <Trophy className="size-4 text-success" />
-            <div>
-              <CardTitle className="text-base">Melhores campanhas</CardTitle>
-              <CardDescription>Menor custo por mensagem</CardDescription>
+      <Card className="p-0">
+        <CardContent className="p-4">
+          {isLoading ? (
+            <div className="flex flex-col gap-2 py-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />
+              ))}
             </div>
-          </CardHeader>
-          <CardContent><RankList data={best} best /></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex-row items-center gap-2">
-            <AlertOctagon className="size-4 text-destructive" />
-            <div>
-              <CardTitle className="text-base">Piores campanhas</CardTitle>
-              <CardDescription>Maior custo por mensagem</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent><RankList data={worst} best={false} /></CardContent>
-        </Card>
-      </div>
-
-      {/* Heatmap */}
-      <Card className="overflow-hidden">
-        <CardHeader>
-          <CardTitle className="text-base">Heatmap de eficiência</CardTitle>
-          <CardDescription>Score por conta e objetivo (0–100)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <div className="min-w-[520px]">
-              <div className="grid grid-cols-[140px_repeat(5,1fr)] gap-1.5">
-                <div />
-                {objectives.map((o) => (
-                  <div key={o} className="px-1 pb-1 text-center text-xs font-medium text-muted-foreground">{o}</div>
-                ))}
-                {heatmap.map((row) => (
-                  <div key={row.account} className="contents">
-                    <div className="flex items-center text-sm font-medium text-foreground">{row.account}</div>
-                    {row.values.map((v) => (
-                      <div
-                        key={v.objective}
-                        className={cn("flex h-12 items-center justify-center rounded-md text-sm font-semibold tabular-nums", heatColor(v.score))}
-                        title={`${row.account} · ${v.objective}: ${v.score}`}
-                      >
-                        {v.score}
-                      </div>
-                    ))}
-                  </div>
-                ))}
+          ) : !connected ? (
+            <EmptyState onGoToIntegrations={onGoToIntegrations} />
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="size-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">Recomendações priorizadas</p>
+                <span className="ml-auto text-xs text-muted-foreground">Ações sugeridas por prioridade</span>
               </div>
+              <RecList recs={MOCK_RECS} />
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recomendações */}
-      <Card>
-        <CardHeader className="flex-row items-center gap-2">
-          <Lightbulb className="size-4 text-warning" />
-          <div>
-            <CardTitle className="text-base">Recomendações priorizadas</CardTitle>
-            <CardDescription>Ações sugeridas por prioridade</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {recommendations.map((r) => {
-            const cfg = prioCfg[r.priority]
-            return (
-              <div key={r.id} className="flex items-start gap-3 rounded-md border border-border p-3">
-                <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", cfg.dot)} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-foreground">{r.text}</p>
-                  <p className="text-xs text-muted-foreground">{r.account}</p>
-                </div>
-                <span className={cn("shrink-0 rounded px-2 py-0.5 text-xs font-medium", cfg.cls)}>{cfg.label}</span>
-              </div>
-            )
-          })}
+          )}
         </CardContent>
       </Card>
     </div>
