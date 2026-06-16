@@ -167,7 +167,7 @@ export async function getAdAccounts(): Promise<MetaAccount[]> {
   return r.data.map((a) => ({
     id: a.id,
     accountId: a.account_id,
-    name: a.name,
+    name: a.name || `Conta ${a.account_id}`,
     currency: a.currency,
     status: a.account_status,
     amountSpent: Number(a.amount_spent || 0) / 100,
