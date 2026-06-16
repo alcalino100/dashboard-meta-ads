@@ -1,36 +1,70 @@
 "use client"
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { supabaseBrowser } from "@/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
 
-type SessionState = "anonymous" | "authenticated" | "expired"
-
-// ⚠️  As credenciais de acesso são gerenciadas pelo Supabase Auth.
-// NÃO adicione senhas ou emails fixos neste arquivo.
-// Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no .env.local
+type SessionState = "anonymous" | "authenticated" | "expired" | "loading"
 
 type AuthCtx = {
   state: SessionState
   user: { name: string; email: string } | null
-  signIn: (email: string, password: string) => boolean
-  signOut: () => void
+  signIn: (email: string, password: string) => Promise<boolean>
+  signOut: () => Promise<void>
   expire: () => void
 }
 
 const Ctx = createContext<AuthCtx | null>(null)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<SessionState>("anonymous")
-  const [user, setUser] = useState<AuthCtx["user"]>(null)
+function toUser(u: User | null): AuthCtx["user"] {
+  if (!u) return null
+  return {
+    name: u.user_metadata?.full_name ?? u.email?.split("@")[0] ?? "Usuário",
+    email: u.email ?? "",
+  }
+}
 
-  // Autenticação real deve ser feita via Supabase Auth (lib/supabase).
-  // Este contexto é mantido apenas para compatibilidade com componentes existentes.
-  const signIn = (_email: string, _password: string) => {
-    // Integração real: use supabase.auth.signInWithPassword() na rota de login.
-    console.warn("signIn stub chamado — implemente integração com Supabase Auth.")
-    return false
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<SessionState>("loading")
+  const [user, setUser] = useState<AuthCtx["user"]>(null)
+  const sb = supabaseBrowser()
+
+  useEffect(() => {
+    // Restore existing session on mount
+    sb.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        setUser(toUser(data.session.user))
+        setState("authenticated")
+      } else {
+        setState("anonymous")
+      }
+    })
+
+    // Listen for auth changes (login, logout, token refresh)
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(toUser(session.user))
+        setState("authenticated")
+      } else {
+        setUser(null)
+        setState("anonymous")
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [sb])
+
+  const signIn = async (email: string, password: string): Promise<boolean> => {
+    const { error } = await sb.auth.signInWithPassword({ email, password })
+    if (error) {
+      console.error("signIn error:", error.message)
+      return false
+    }
+    return true
   }
 
-  const signOut = () => {
+  const signOut = async () => {
+    await sb.auth.signOut()
     setUser(null)
     setState("anonymous")
   }
