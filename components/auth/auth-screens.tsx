@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { useAuth } from "@/lib/auth-context"
+import { useAuth, DEFAULT_CREDENTIAL } from "@/lib/auth-context"
 
 type View = "login" | "recover" | "first-access"
 
@@ -66,7 +66,7 @@ function Field({
 export function AuthScreens() {
   const { state, signIn } = useAuth()
   const [view, setView] = useState<View>("login")
-  const [email, setEmail] = useState("rafael@colucci.com")
+  const [email, setEmail] = useState(DEFAULT_CREDENTIAL.email)
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [error, setError] = useState("")
@@ -79,7 +79,8 @@ export function AuthScreens() {
     if (!email.includes("@")) return setError("E-mail inválido.")
     if (password.length < 6) return setError("Senha deve ter ao menos 6 caracteres.")
     setError("")
-    signIn(email)
+    const ok = signIn(email, password)
+    if (!ok) setError("E-mail ou senha incorretos.")
   }
 
   const submitRecover = (e: React.FormEvent) => {
@@ -94,7 +95,7 @@ export function AuthScreens() {
     if (password.length < 8) return setError("A senha deve ter ao menos 8 caracteres.")
     if (password !== confirm) return setError("As senhas não coincidem.")
     setError("")
-    signIn(email)
+    signIn(email, password)
   }
 
   return (
