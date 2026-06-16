@@ -2,39 +2,34 @@
 
 import {
   LayoutDashboard,
-  Building2,
   Megaphone,
-  Layers,
-  ImageIcon,
-  Palette,
+  Plug,
   GitBranch,
   Bell,
-  FileBarChart,
+  Target,
+  Brain,
   Users,
+  ScrollText,
   Settings,
   Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { NavItem } from "@/lib/mock-data"
+import { navItems, type NavItem } from "@/lib/mock-data"
 
 const icons: Record<NavItem, React.ComponentType<{ className?: string }>> = {
   Overview: LayoutDashboard,
-  Contas: Building2,
   Campanhas: Megaphone,
-  Conjuntos: Layers,
-  Anúncios: ImageIcon,
-  Criativos: Palette,
+  Integrações: Plug,
   Regras: GitBranch,
   Alertas: Bell,
-  Relatórios: FileBarChart,
+  Metas: Target,
+  Inteligência: Brain,
   Usuários: Users,
+  Auditoria: ScrollText,
   Configurações: Settings,
 }
 
-const order: NavItem[] = [
-  "Overview", "Contas", "Campanhas", "Conjuntos", "Anúncios",
-  "Criativos", "Regras", "Alertas", "Relatórios", "Usuários", "Configurações",
-]
+const order: NavItem[] = [...navItems]
 
 export function SidebarNav({
   active,

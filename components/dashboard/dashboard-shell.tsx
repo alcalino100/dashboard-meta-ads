@@ -8,6 +8,10 @@ import { OverviewSection } from "./overview-section"
 import { CampaignsSection } from "./campaigns-section"
 import { UsersSection } from "./users-section"
 import { AlertsSection } from "./alerts-section"
+import { AuditSection } from "./audit-section"
+import { IntegrationsSection } from "./integrations-section"
+import { GoalsSection } from "./goals-section"
+import { IntelligenceSection } from "./intelligence-section"
 import { PlaceholderSection } from "./placeholder-section"
 import type { NavItem } from "@/lib/mock-data"
 
@@ -26,10 +30,18 @@ export function DashboardShell() {
         return <OverviewSection />
       case "Campanhas":
         return <CampaignsSection />
-      case "Usuários":
-        return <UsersSection />
+      case "Integrações":
+        return <IntegrationsSection />
       case "Alertas":
         return <AlertsSection />
+      case "Metas":
+        return <GoalsSection />
+      case "Inteligência":
+        return <IntelligenceSection />
+      case "Usuários":
+        return <UsersSection />
+      case "Auditoria":
+        return <AuditSection />
       default:
         return <PlaceholderSection title={active} />
     }

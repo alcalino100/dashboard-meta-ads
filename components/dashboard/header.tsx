@@ -1,6 +1,7 @@
 "use client"
 
-import { Search, Plus, Download, RefreshCw, Upload, Menu } from "lucide-react"
+import { Search, Plus, Download, RefreshCw, Upload, Menu, LogOut, TimerOff, User } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -49,6 +50,7 @@ function GlobalFilter({
 }
 
 export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
+  const { signOut, expire } = useAuth()
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
       <div className="flex flex-wrap items-center gap-2 px-4 py-3">
@@ -104,9 +106,26 @@ export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Avatar className="size-9 border border-border">
-            <AvatarFallback className="bg-secondary text-xs">RM</AvatarFallback>
-          </Avatar>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button aria-label="Menu da conta" className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
+                <Avatar className="size-9 border border-border">
+                  <AvatarFallback className="bg-secondary text-xs">RM</AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem>
+                <User className="size-4" /> Meu perfil
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={expire}>
+                <TimerOff className="size-4" /> Simular sessão expirada
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+                <LogOut className="size-4" /> Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

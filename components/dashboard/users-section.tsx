@@ -1,13 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { Check, X, UserPlus } from "lucide-react"
+import { Check, X, UserPlus, MoreHorizontal, Power, Send, KeyRound } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -25,7 +31,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { users, roles, accounts, permissionActions, permissionMatrix } from "@/lib/mock-data"
+import { users, roles, accounts, permissionActions, permissionMatrix, accountPermissions } from "@/lib/mock-data"
+
+const levelCfg = {
+  full: { label: "Total", cls: "bg-success/15 text-success" },
+  edit: { label: "Editar", cls: "bg-primary/15 text-primary" },
+  view: { label: "Ver", cls: "bg-secondary text-secondary-foreground" },
+  none: { label: "—", cls: "bg-muted text-muted-foreground/60" },
+}
 
 function initials(name: string) {
   return name.split(" ").map((n) => n[0]).slice(0, 2).join("")
@@ -117,6 +130,7 @@ export function UsersSection() {
                 <TableHead className="text-right">Contas</TableHead>
                 <TableHead>Último acesso</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-10 text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -144,6 +158,20 @@ export function UsersSection() {
                       <span className={cn("size-1.5 rounded-full", u.status === "active" ? "bg-success" : "bg-muted-foreground")} />
                       {u.status === "active" ? "Ativo" : "Inativo"}
                     </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-7" aria-label={`Ações de ${u.name}`}>
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem><Power className="size-4" /> {u.status === "active" ? "Desativar" : "Ativar"}</DropdownMenuItem>
+                        <DropdownMenuItem><Send className="size-4" /> Reenviar convite</DropdownMenuItem>
+                        <DropdownMenuItem><KeyRound className="size-4" /> Resetar senha</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -181,6 +209,42 @@ export function UsersSection() {
                         )}
                       </TableCell>
                     ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        <CardHeader className="p-4">
+          <CardTitle className="text-base">Permissões por conta de anúncio</CardTitle>
+          <CardDescription>Nível de acesso de cada usuário em cada conta vinculada</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="min-w-[140px]">Usuário</TableHead>
+                  {accounts.map((a) => (
+                    <TableHead key={a.id} className="text-center text-xs">{a.name}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accountPermissions.map((row) => (
+                  <TableRow key={row.user}>
+                    <TableCell className="font-medium text-foreground">{row.user}</TableCell>
+                    {row.perAccount.map((p) => {
+                      const cfg = levelCfg[p.level]
+                      return (
+                        <TableCell key={p.account} className="text-center">
+                          <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-medium", cfg.cls)}>{cfg.label}</span>
+                        </TableCell>
+                      )
+                    })}
                   </TableRow>
                 ))}
               </TableBody>
