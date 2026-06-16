@@ -137,6 +137,15 @@ export function InlineLoading({ label = "Carregando dados reais..." }: { label?:
   )
 }
 
+// Aliases simplificados usados pelos módulos
+export function ErrorState({ message, code, onRetry }: { message: string; code?: number | null; onRetry?: () => void }) {
+  return <ApiErrorState message={message} code={code} onRetry={onRetry} />
+}
+
+export function LoadingState({ label }: { label?: string }) {
+  return <InlineLoading label={label} />
+}
+
 // ── Gate de conexão reutilizável ────────────────────────────
 // Garante CTA único de conexão; quando conectado, renderiza children.
 export function ConnectionGate({

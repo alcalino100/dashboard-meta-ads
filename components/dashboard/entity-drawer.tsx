@@ -1,24 +1,16 @@
 "use client"
 
 import Image from "next/image"
-import { ChevronRight, Pause, Pencil } from "lucide-react"
+import { Pause, Pencil } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "./status-badge"
-import type { Status } from "@/lib/meta-api"
+import { fmtCurrency, fmtNumber, fmtPercent } from "@/lib/format"
+import type { CampaignRow, AdSetRow, AdRow } from "@/lib/use-meta"
 
-export type DrawerItem = {
-  title: string
-  status: Status
-  subtitle: string
-  metrics: { label: string; value: string }[]
-  info: { t: string; d: string }[]
-  thumbnail?: string | null
-  creativeTitle?: string
-  body?: string
-  drill?: { label: string; onClick: () => void }
-}
+type Kind = "campaign" | "adset" | "ad"
+type Row = CampaignRow | AdSetRow | AdRow
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
@@ -29,26 +21,74 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
+const KIND_LABEL: Record<Kind, string> = { campaign: "Campanha", adset: "Conjunto de anúncios", ad: "Anúncio" }
+
+function buildMetrics(kind: Kind, row: Row) {
+  const base = [
+    { label: "Gasto", value: fmtCurrency(row.spend) },
+    { label: "Impressões", value: fmtNumber(row.impressions) },
+    { label: "Cliques", value: fmtNumber(row.clicks) },
+    { label: "CPC", value: fmtCurrency(row.cpc) },
+    { label: "CTR", value: fmtPercent(row.ctr) },
+    { label: "Mensagens", value: fmtNumber(row.messages) },
+    { label: "Custo/msg", value: row.messages > 0 ? fmtCurrency(row.costPerMsg) : "—" },
+  ]
+  return base
+}
+
+function buildInfo(kind: Kind, row: Row): { t: string; d: string }[] {
+  if (kind === "campaign") {
+    const c = row as CampaignRow
+    return [
+      { t: "Objetivo", d: c.objective },
+      { t: "Orçamento", d: c.budget > 0 ? fmtCurrency(c.budget) : "Nível conjunto" },
+      { t: "Início", d: c.start },
+      { t: "Término", d: c.end },
+      { t: "Atualização", d: c.updated },
+    ]
+  }
+  if (kind === "adset") {
+    const s = row as AdSetRow
+    return [
+      { t: "Otimização", d: s.optimization },
+      { t: "Cobrança", d: s.billing },
+      { t: "Posicionamentos", d: s.placements },
+      { t: "Orçamento", d: s.budget > 0 ? fmtCurrency(s.budget) : "Nível campanha" },
+      { t: "Início", d: s.start },
+      { t: "Término", d: s.end },
+    ]
+  }
+  return []
+}
+
 export function EntityDrawer({
-  item,
+  kind,
+  row,
+  accountId,
   open,
   onOpenChange,
 }: {
-  item: DrawerItem | null
+  kind: Kind
+  row: Row | null
+  accountId?: string
   open: boolean
   onOpenChange: (o: boolean) => void
 }) {
+  const ad = kind === "ad" ? (row as AdRow) : null
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-        {item && (
+        {row && (
           <>
             <SheetHeader>
               <div className="flex items-center gap-2">
-                <StatusBadge status={item.status} />
+                <StatusBadge status={row.status} />
+                <span className="text-xs text-muted-foreground">{KIND_LABEL[kind]}</span>
               </div>
-              <SheetTitle className="text-balance text-left">{item.title}</SheetTitle>
-              <SheetDescription className="text-left">{item.subtitle}</SheetDescription>
+              <SheetTitle className="text-balance text-left">{row.name}</SheetTitle>
+              <SheetDescription className="text-left">
+                ID {row.id}{accountId ? ` · ${accountId}` : ""}
+              </SheetDescription>
             </SheetHeader>
 
             <div className="flex flex-col gap-4 px-4 pb-6">
@@ -61,24 +101,24 @@ export function EntityDrawer({
                 </Button>
               </div>
 
-              {(item.thumbnail || item.body) && (
+              {ad && (ad.thumbnail || ad.body !== "—") && (
                 <>
                   <Separator />
                   <div className="flex gap-3">
-                    {item.thumbnail && (
+                    {ad.thumbnail && (
                       <Image
-                        src={item.thumbnail || "/placeholder.svg"}
-                        alt={`Criativo de ${item.title}`}
+                        src={ad.thumbnail || "/placeholder.svg"}
+                        alt={`Criativo de ${ad.name}`}
                         width={72}
                         height={72}
                         unoptimized
                         crossOrigin="anonymous"
-                        className="size-18 shrink-0 rounded-md border border-border object-cover"
+                        className="size-[72px] shrink-0 rounded-md border border-border object-cover"
                       />
                     )}
                     <div className="min-w-0">
-                      {item.creativeTitle && <p className="text-sm font-medium text-foreground">{item.creativeTitle}</p>}
-                      {item.body && <p className="mt-0.5 line-clamp-4 text-xs text-muted-foreground">{item.body}</p>}
+                      <p className="text-sm font-medium text-foreground">{ad.title}</p>
+                      {ad.body !== "—" && <p className="mt-0.5 line-clamp-4 text-xs text-muted-foreground">{ad.body}</p>}
                     </div>
                   </div>
                 </>
@@ -91,13 +131,13 @@ export function EntityDrawer({
                   Métricas do período
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  {item.metrics.map((m) => (
+                  {buildMetrics(kind, row).map((m) => (
                     <Metric key={m.label} label={m.label} value={m.value} />
                   ))}
                 </div>
               </div>
 
-              {item.info.length > 0 && (
+              {buildInfo(kind, row).length > 0 && (
                 <>
                   <Separator />
                   <div>
@@ -105,7 +145,7 @@ export function EntityDrawer({
                       Informações
                     </p>
                     <ul className="flex flex-col gap-2">
-                      {item.info.map((h, i) => (
+                      {buildInfo(kind, row).map((h, i) => (
                         <li key={i} className="flex items-center justify-between gap-4 text-sm">
                           <span className="shrink-0 text-muted-foreground">{h.t}</span>
                           <span className="truncate text-right text-foreground">{h.d}</span>
@@ -114,12 +154,6 @@ export function EntityDrawer({
                     </ul>
                   </div>
                 </>
-              )}
-
-              {item.drill && (
-                <Button className="gap-1.5" onClick={item.drill.onClick}>
-                  {item.drill.label} <ChevronRight className="size-4" />
-                </Button>
               )}
             </div>
           </>

@@ -39,6 +39,7 @@ type FiltersCtx = {
   accounts: AccountData[]
   accountsLoading: boolean
   accountName: (id: string) => string
+  rangeLabel: string
 }
 
 const Ctx = createContext<FiltersCtx | null>(null)
@@ -82,6 +83,9 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
       accounts,
       accountsLoading,
       accountName: (id) => accounts.find((a) => a.id === id)?.name ?? id,
+      rangeLabel: `${presetLabel(range)} · ${
+        account === "all" ? "Todas as contas" : accounts.find((a) => a.id === account)?.name ?? "Conta"
+      }`,
     }),
     [range, account, compare, update, status, statusLoading, accounts, accountsLoading],
   )

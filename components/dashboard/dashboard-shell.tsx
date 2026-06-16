@@ -5,7 +5,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { SidebarNav } from "./sidebar"
 import { Header } from "./header"
 import { OverviewSection } from "./overview-section"
-import { CampaignsSection } from "./campaigns-section"
+import { HierarchySection } from "./hierarchy-section"
 import { UsersSection } from "./users-section"
 import { AlertsSection } from "./alerts-section"
 import { AuditSection } from "./audit-section"
@@ -30,7 +30,7 @@ export function DashboardShell() {
       case "Overview":
         return <OverviewSection />
       case "Campanhas":
-        return <CampaignsSection />
+        return <HierarchySection />
       case "Integrações":
         return <IntegrationsSection />
       case "Alertas":

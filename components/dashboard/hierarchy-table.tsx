@@ -9,53 +9,57 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { StatusBadge } from "./status-badge"
+import { TableSkeleton } from "./states"
+import type { Status } from "@/lib/mock-data"
 
 export type Column<T> = {
-  key: string
+  key: keyof T & string
   label: string
+  sortable?: boolean
+  primary?: boolean
+  type?: "status"
   align?: "left" | "right"
-  sticky?: boolean
-  sortValue?: (row: T) => number | string
-  render: (row: T) => ReactNode
+  fmt?: (value: unknown, row: T) => ReactNode
 }
 
 const PER_PAGE = 8
 
-export function HierarchyTable<T extends { id: string; name: string }>({
+export function HierarchyTable<T extends { id: string; name: string; status: Status }>({
   rows,
   columns,
-  searchPlaceholder,
+  loading,
+  entityLabel,
+  emptyLabel,
   drillLabel,
   onDrill,
-  onOpen,
+  onRowClick,
 }: {
   rows: T[]
   columns: Column<T>[]
-  searchPlaceholder: string
+  loading?: boolean
+  entityLabel: string
+  emptyLabel: string
   drillLabel?: string
   onDrill?: (row: T) => void
-  onOpen: (row: T) => void
+  onRowClick: (row: T) => void
 }) {
   const [query, setQuery] = useState("")
   const [sortKey, setSortKey] = useState<string>("spend")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
   const [page, setPage] = useState(1)
 
-  const sortable = useMemo(() => new Map(columns.filter((c) => c.sortValue).map((c) => [c.key, c])), [columns])
-
   const filtered = useMemo(() => {
-    const col = sortable.get(sortKey)
     return rows
       .filter((r) => r.name.toLowerCase().includes(query.toLowerCase()))
       .sort((a, b) => {
-        if (!col?.sortValue) return 0
         const dir = sortDir === "asc" ? 1 : -1
-        const va = col.sortValue(a)
-        const vb = col.sortValue(b)
+        const va = a[sortKey as keyof T]
+        const vb = b[sortKey as keyof T]
         if (typeof va === "string") return va.localeCompare(vb as string) * dir
         return ((va as number) - (vb as number)) * dir
       })
-  }, [rows, query, sortKey, sortDir, sortable])
+  }, [rows, query, sortKey, sortDir])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const current = Math.min(page, totalPages)
@@ -66,6 +70,24 @@ export function HierarchyTable<T extends { id: string; name: string }>({
     else { setSortKey(key); setSortDir("desc") }
   }
 
+  if (loading) return <TableSkeleton rows={6} />
+
+  if (rows.length === 0) {
+    return (
+      <Card className="items-center gap-2 p-12 text-center">
+        <p className="text-sm font-medium text-foreground">{emptyLabel}</p>
+        <p className="text-sm text-muted-foreground">Ajuste o período ou os filtros e tente novamente.</p>
+      </Card>
+    )
+  }
+
+  const renderCell = (col: Column<T>, row: T): ReactNode => {
+    const value = row[col.key]
+    if (col.type === "status") return <StatusBadge status={row.status} />
+    if (col.fmt) return col.fmt(value, row)
+    return value as ReactNode
+  }
+
   return (
     <Card className="gap-0 overflow-hidden p-0">
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
@@ -74,8 +96,8 @@ export function HierarchyTable<T extends { id: string; name: string }>({
           <Input
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1) }}
-            placeholder={searchPlaceholder}
-            aria-label={searchPlaceholder}
+            placeholder={`Buscar ${entityLabel}...`}
+            aria-label={`Buscar ${entityLabel}`}
             className="h-9 border-border bg-secondary/40 pl-9"
           />
         </div>
@@ -90,10 +112,10 @@ export function HierarchyTable<T extends { id: string; name: string }>({
                   key={c.key}
                   className={cn(
                     c.align === "right" && "text-right",
-                    c.sticky && "sticky left-0 z-10 bg-card min-w-[220px]",
+                    c.primary && "sticky left-0 z-10 bg-card min-w-[220px]",
                   )}
                 >
-                  {c.sortValue ? (
+                  {c.sortable ? (
                     <button
                       type="button"
                       onClick={() => toggleSort(c.key)}
@@ -117,16 +139,16 @@ export function HierarchyTable<T extends { id: string; name: string }>({
               </TableRow>
             )}
             {pageRows.map((r) => (
-              <TableRow key={r.id} onClick={() => onOpen(r)} className="cursor-pointer">
+              <TableRow key={r.id} onClick={() => onRowClick(r)} className="cursor-pointer">
                 {columns.map((c) => (
                   <TableCell
                     key={c.key}
                     className={cn(
                       c.align === "right" && "text-right font-mono tabular-nums",
-                      c.sticky && "sticky left-0 z-10 bg-card font-medium text-foreground",
+                      c.primary && "sticky left-0 z-10 bg-card font-medium text-foreground",
                     )}
                   >
-                    {c.render(r)}
+                    {renderCell(c, r)}
                   </TableCell>
                 ))}
                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -135,7 +157,7 @@ export function HierarchyTable<T extends { id: string; name: string }>({
                       {drillLabel} <ChevronRight className="size-3.5" />
                     </Button>
                   ) : (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onOpen(r)}>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onRowClick(r)}>
                       Abrir
                     </Button>
                   )}
@@ -148,7 +170,7 @@ export function HierarchyTable<T extends { id: string; name: string }>({
 
       <div className="flex items-center justify-between border-t border-border px-4 py-3">
         <p className="text-xs text-muted-foreground tabular-nums">
-          {filtered.length} item(ns) · página {current} de {totalPages}
+          {filtered.length} {entityLabel}(s) · página {current} de {totalPages}
         </p>
         <div className="flex gap-1.5">
           <Button variant="outline" size="sm" className="h-8" disabled={current <= 1} onClick={() => setPage(current - 1)}>
