@@ -22,14 +22,9 @@ type Rec = {
   trend: "up" | "down" | "neutral"
 }
 
-// Apenas exibidas quando há conexão ativa com dados reais
-const MOCK_RECS: Rec[] = [
-  { id: "1", title: "Pausar 'Conversões Studio Remarketing' — sem entrega há 6h e gasto acelerado.", account: "Studio Bella", priority: "Alta", trend: "down" },
-  { id: "2", title: "Revisar criativo de 'Mensagens Colucci Aquisição' — custo por mensagem 63% acima da meta.", account: "Colucci Joias", priority: "Alta", trend: "down" },
-  { id: "3", title: "Realocar orçamento de Móveis Norte para campanhas com CTR acima de 1,8%.", account: "Móveis Norte", priority: "Média", trend: "up" },
-  { id: "4", title: "Reduzir frequência em 'Alcance Vitta' — saturação de público em 7 dias.", account: "Clínica Vitta", priority: "Média", trend: "neutral" },
-  { id: "5", title: "Testar novos públicos lookalike para escalar campanhas eficientes.", account: "Colucci Joias", priority: "Baixa", trend: "up" },
-]
+// Recomendações reais — geradas a partir dos dados da Meta API
+// Este array é preenchido dinamicamente quando há conexão ativa
+const REAL_RECS: Rec[] = []
 
 function TrendIcon({ trend }: { trend: Rec["trend"] }) {
   if (trend === "up") return <TrendingUp className="size-3.5 text-success" />
@@ -46,8 +41,8 @@ function EmptyState({ onGoToIntegrations }: { onGoToIntegrations?: () => void })
       <div className="max-w-sm">
         <p className="text-base font-semibold text-foreground">Nenhuma conta conectada</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          As recomendações de inteligência são geradas a partir dos seus dados reais do Meta Ads.
-          Conecte pelo menos uma conta para começar a receber insights.
+          As recomendações de inteligência são geradas exclusivamente a partir dos seus dados reais do Meta Ads.
+          Conecte pelo menos uma conta para começar a receber insights personalizados.
         </p>
       </div>
       <Button
@@ -65,12 +60,27 @@ function EmptyState({ onGoToIntegrations }: { onGoToIntegrations?: () => void })
           "Campanhas com custo por resultado acima da meta",
           "Públicos saturados e criativos com queda de performance",
           "Oportunidades de escala por CTR e ROAS",
+          "Comparativo de performance entre contas gerenciadas",
         ].map((item) => (
           <div key={item} className="flex items-start gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
             <Lightbulb className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <p className="text-xs text-muted-foreground">{item}</p>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+function NoDataYet() {
+  return (
+    <div className="flex flex-col items-center gap-3 py-12 text-center">
+      <Lightbulb className="size-8 text-muted-foreground/40" />
+      <div className="max-w-sm">
+        <p className="text-sm font-medium text-foreground">Processando dados das contas</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Conta conectada com sucesso. As recomendações aparecerão aqui após a primeira sincronização de dados.
+        </p>
       </div>
     </div>
   )
@@ -108,6 +118,7 @@ function RecList({ recs }: { recs: Rec[] }) {
 
 export function IntelligenceSection({ onGoToIntegrations }: { onGoToIntegrations?: () => void }) {
   const { data: status, isLoading } = useStatus()
+  // Só considera conectado se a API retornou connected: true explicitamente
   const connected = status?.connected === true
 
   return (
@@ -126,15 +137,20 @@ export function IntelligenceSection({ onGoToIntegrations }: { onGoToIntegrations
               ))}
             </div>
           ) : !connected ? (
+            // Sem conta conectada: sempre mostra empty state — NUNCA dados mock
             <EmptyState onGoToIntegrations={onGoToIntegrations} />
+          ) : REAL_RECS.length === 0 ? (
+            // Conectado mas ainda sem dados processados
+            <NoDataYet />
           ) : (
+            // Conectado com recomendações reais disponíveis
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <Lightbulb className="size-4 text-primary" />
                 <p className="text-sm font-semibold text-foreground">Recomendações priorizadas</p>
                 <span className="ml-auto text-xs text-muted-foreground">Ações sugeridas por prioridade</span>
               </div>
-              <RecList recs={MOCK_RECS} />
+              <RecList recs={REAL_RECS} />
             </div>
           )}
         </CardContent>
