@@ -1,62 +1,111 @@
 "use client"
 
-import { AlertTriangle, AlertCircle, Info, Plus } from "lucide-react"
+import { useState } from "react"
+import { Plus, Trash2, BellRing, Power } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { alerts, events, accounts } from "@/lib/mock-data"
-import { ConnectionGate } from "./states"
+import { ConnectionGate, LoadingState, ErrorState, DataEmptyState } from "./states"
 import { useNavigate } from "@/lib/nav-context"
+import { useFilters } from "@/lib/filters-context"
+import { useRules, useAudit, createItem, deleteItem, patchItem, type Rule } from "@/lib/use-store"
 
-const sevConfig = {
-  high: { icon: AlertCircle, cls: "text-destructive", bg: "bg-destructive/10 border-destructive/20", label: "Alta" },
-  medium: { icon: AlertTriangle, cls: "text-warning", bg: "bg-warning/10 border-warning/20", label: "Média" },
-  low: { icon: Info, cls: "text-primary", bg: "bg-primary/10 border-primary/20", label: "Baixa" },
+const METRICS: Record<string, string> = {
+  cpmsg: "Custo por mensagem",
+  cpc: "CPC",
+  ctr: "CTR",
+  freq: "Frequência",
+  spend: "Gasto",
+}
+const ACTIONS: Record<string, string> = {
+  pause: "Pausar campanha",
+  notify: "Notificar gestor",
+  budget: "Reduzir orçamento",
 }
 
-export function AlertsSection() {
-  const navigate = useNavigate()
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Alertas e automações</h2>
-        <p className="text-sm text-muted-foreground">Regras operacionais vinculadas às conexões Meta ativas</p>
-      </div>
+function RulesInner() {
+  const { rules, isLoading, error } = useRules()
+  const { logs } = useAudit()
+  const { accounts } = useFilters()
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    metric: "cpmsg", operator: ">", threshold: "6", scope: "all", action: "pause",
+  })
 
-      <ConnectionGate onGoToConnections={() => navigate("Integrações")}>
+  const create = async () => {
+    setSaving(true)
+    try {
+      await createItem("rules", {
+        name: `${METRICS[form.metric]} ${form.operator} ${form.threshold}`,
+        metric: form.metric,
+        operator: form.operator,
+        threshold: Number(form.threshold),
+        action: form.action,
+        scope: form.scope,
+        active: true,
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const recent = logs.slice(0, 6)
+
+  return (
+    <>
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Lista de alertas */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Alertas de performance</CardTitle>
-            <CardDescription>{alerts.length} alertas ativos</CardDescription>
+            <CardTitle className="text-base">Regras configuradas</CardTitle>
+            <CardDescription>{rules.length} regra(s) ativa(s) no banco</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            {alerts.map((a) => {
-              const cfg = sevConfig[a.severity]
-              const Icon = cfg.icon
-              return (
-                <div key={a.id} className={cn("flex items-start gap-3 rounded-md border p-3", cfg.bg)}>
-                  <Icon className={cn("mt-0.5 size-4 shrink-0", cfg.cls)} />
+            {isLoading ? (
+              <LoadingState label="Carregando regras..." />
+            ) : error ? (
+              <ErrorState message="Não foi possível carregar as regras." />
+            ) : rules.length === 0 ? (
+              <DataEmptyState
+                icon={BellRing}
+                title="Nenhuma regra criada"
+                description="Crie regras de automação ao lado para monitorar métricas e disparar ações sobre as campanhas."
+              />
+            ) : (
+              rules.map((r: Rule) => (
+                <div key={r.id} className={cn(
+                  "flex items-start gap-3 rounded-md border p-3",
+                  r.active ? "border-border bg-secondary/30" : "border-border/50 bg-muted/30 opacity-70",
+                )}>
+                  <BellRing className={cn("mt-0.5 size-4 shrink-0", r.active ? "text-primary" : "text-muted-foreground")} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium text-foreground">{a.title}</p>
-                      <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase", cfg.cls)}>{cfg.label}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{a.campaign} · {a.detail}</p>
+                    <p className="text-sm font-medium text-foreground">{r.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {METRICS[r.metric] ?? r.metric} {r.operator} {r.threshold} ·{" "}
+                      {r.scope === "all" ? "Todas as contas" : accounts.find((a) => a.id === r.scope)?.name ?? r.scope} ·{" "}
+                      {ACTIONS[r.action] ?? r.action}
+                    </p>
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{a.time}</span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="ghost" size="icon" className="size-7 text-muted-foreground"
+                      aria-label={r.active ? "Desativar regra" : "Ativar regra"}
+                      onClick={() => patchItem("rules", { id: r.id, active: !r.active })}
+                    >
+                      <Power className={cn("size-4", r.active && "text-success")} />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-destructive"
+                      aria-label="Excluir regra" onClick={() => deleteItem("rules", r.id)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
-              )
-            })}
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -69,42 +118,32 @@ export function AlertsSection() {
           <CardContent className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs">Quando a métrica</Label>
-              <Select defaultValue="cpmsg">
+              <Select value={form.metric} onValueChange={(v) => setForm({ ...form, metric: v })}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cpmsg">Custo por mensagem</SelectItem>
-                  <SelectItem value="cpc">CPC</SelectItem>
-                  <SelectItem value="ctr">CTR</SelectItem>
-                  <SelectItem value="freq">Frequência</SelectItem>
+                  {Object.entries(METRICS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Operador</Label>
-                <Select defaultValue="gt">
+                <Select value={form.operator} onValueChange={(v) => setForm({ ...form, operator: v })}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gt">Maior que</SelectItem>
-                    <SelectItem value="lt">Menor que</SelectItem>
+                    <SelectItem value=">">Maior que</SelectItem>
+                    <SelectItem value="<">Menor que</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Valor</Label>
-                <Select defaultValue="6">
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="6">R$ 6,00</SelectItem>
-                    <SelectItem value="8">R$ 8,00</SelectItem>
-                    <SelectItem value="10">R$ 10,00</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input type="number" value={form.threshold} onChange={(e) => setForm({ ...form, threshold: e.target.value })} className="h-9" />
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs">Escopo</Label>
-              <Select defaultValue="all">
+              <Select value={form.scope} onValueChange={(v) => setForm({ ...form, scope: v })}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as contas</SelectItem>
@@ -114,44 +153,61 @@ export function AlertsSection() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs">Ação sugerida</Label>
-              <Select defaultValue="pause">
+              <Select value={form.action} onValueChange={(v) => setForm({ ...form, action: v })}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pause">Pausar campanha</SelectItem>
-                  <SelectItem value="notify">Notificar gestor</SelectItem>
-                  <SelectItem value="budget">Reduzir orçamento</SelectItem>
+                  {Object.entries(ACTIONS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <Button size="sm" className="mt-1 gap-1.5">
-              <Plus className="size-4" /> Criar regra
+            <Button size="sm" className="mt-1 gap-1.5" onClick={create} disabled={saving}>
+              <Plus className="size-4" /> {saving ? "Criando..." : "Criar regra"}
             </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* Histórico de eventos */}
+      {/* Histórico real (auditoria) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Histórico de eventos</CardTitle>
-          <CardDescription>Operações recentes do sistema</CardDescription>
+          <CardTitle className="text-base">Atividade recente</CardTitle>
+          <CardDescription>Últimas operações registradas no painel</CardDescription>
         </CardHeader>
         <CardContent>
-          <ul className="flex flex-col gap-3">
-            {events.map((e, i) => (
-              <li key={i} className="flex items-center gap-3 text-sm">
-                <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-                <p className="text-foreground">
-                  <span className="font-medium">{e.actor}</span>{" "}
-                  <span className="text-muted-foreground">{e.action}</span>{" "}
-                  <span className="font-medium">{e.target}</span>
-                </p>
-                <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{e.time}</span>
-              </li>
-            ))}
-          </ul>
+          {recent.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Sem atividade registrada ainda.</p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {recent.map((e) => (
+                <li key={e.id} className="flex items-center gap-3 text-sm">
+                  <span className="size-1.5 shrink-0 rounded-full bg-primary" />
+                  <p className="text-foreground">
+                    <span className="font-medium">{e.actor}</span>{" "}
+                    <span className="text-muted-foreground">{e.description}</span>
+                  </p>
+                  <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {new Date(e.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
+    </>
+  )
+}
+
+export function AlertsSection() {
+  const navigate = useNavigate()
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Alertas e automações</h2>
+        <p className="text-sm text-muted-foreground">Regras operacionais vinculadas às conexões Meta ativas</p>
+      </div>
+      <ConnectionGate onGoToConnections={() => navigate("Integrações")}>
+        <RulesInner />
       </ConnectionGate>
     </div>
   )

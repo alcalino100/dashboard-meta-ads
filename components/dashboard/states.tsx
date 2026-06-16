@@ -146,6 +146,36 @@ export function LoadingState({ label }: { label?: string }) {
   return <InlineLoading label={label} />
 }
 
+// ── Empty state genérico para dados persistidos (banco) ─────
+export function DataEmptyState({
+  icon = Inbox,
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  icon?: LucideIcon
+  title: string
+  description: string
+  actionLabel?: string
+  onAction?: () => void
+}) {
+  return (
+    <StateCard
+      icon={icon}
+      title={title}
+      description={description}
+      action={
+        actionLabel && onAction ? (
+          <Button size="sm" className="gap-1.5" onClick={onAction}>
+            {actionLabel}
+          </Button>
+        ) : undefined
+      }
+    />
+  )
+}
+
 // ── Gate de conexão reutilizável ────────────────────────────
 // Garante CTA único de conexão; quando conectado, renderiza children.
 export function ConnectionGate({

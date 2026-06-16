@@ -12,6 +12,7 @@ import { AuditSection } from "./audit-section"
 import { IntegrationsSection } from "./integrations-section"
 import { GoalsSection } from "./goals-section"
 import { IntelligenceSection } from "./intelligence-section"
+import { SettingsSection } from "./settings-section"
 import { PlaceholderSection } from "./placeholder-section"
 import { NavProvider } from "@/lib/nav-context"
 import type { NavItem } from "@/lib/mock-data"
@@ -33,6 +34,7 @@ export function DashboardShell() {
         return <HierarchySection />
       case "Integrações":
         return <IntegrationsSection />
+      case "Regras":
       case "Alertas":
         return <AlertsSection />
       case "Metas":
@@ -43,6 +45,8 @@ export function DashboardShell() {
         return <UsersSection />
       case "Auditoria":
         return <AuditSection />
+      case "Configurações":
+        return <SettingsSection />
       default:
         return <PlaceholderSection title={active} />
     }
