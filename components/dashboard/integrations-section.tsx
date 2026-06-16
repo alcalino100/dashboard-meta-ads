@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import {
   Plug, CheckCircle2, AlertTriangle, XCircle, RefreshCw, Database,
   ArrowRight, Loader2, KeyRound, Plus, Trash2, X,
@@ -70,25 +71,35 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
       }
       closeForm()
       await refresh()
+      toast.success("Token adicionado")
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Erro ao salvar token.")
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar token.")
     } finally {
       setSaving(false)
     }
   }
 
   const removeToken = async (id: string) => {
+    const removed = connections.find((c) => c.id === id)
+    if (removed?.uses_env_token) {
+      toast.error("Token de ambiente não pode ser removido")
+      setDeleteId(null)
+      return
+    }
     setBusyId(id)
     try {
-      const removed = connections.find((c) => c.id === id)
       await deleteItem("connections", id)
       if (removed?.status === "connected") {
         const next = connections.find((c) => c.id !== id)
         if (next) await patchItem("connections", { id: next.id, status: "connected" })
       }
-      setDeleteId(null)
       await refresh()
+      toast.success("Token removido")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao remover token")
     } finally {
+      setDeleteId(null)
       setBusyId(null)
     }
   }
@@ -102,6 +113,9 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
       )
       await patchItem("connections", { id, status: "connected" })
       await refresh()
+      toast.success("Token definido como principal")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar token")
     } finally {
       setBusyId(null)
     }
@@ -251,7 +265,9 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            {deleteId === t.id ? (
+                            {t.uses_env_token ? (
+                              <span className="text-xs text-muted-foreground">Token de ambiente</span>
+                            ) : deleteId === t.id ? (
                               <div className="flex items-center justify-end gap-2">
                                 <span className="text-xs text-muted-foreground">Confirmar?</span>
                                 <button
@@ -263,7 +279,8 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
                                 </button>
                                 <button
                                   onClick={() => setDeleteId(null)}
-                                  className="text-xs text-muted-foreground hover:underline"
+                                  disabled={busyId === t.id}
+                                  className="text-xs text-muted-foreground hover:underline disabled:opacity-60"
                                 >Não</button>
                               </div>
                             ) : (

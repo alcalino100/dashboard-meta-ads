@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { SidebarNav } from "./sidebar"
 import { Header } from "./header"
+import { SetupBanner } from "./setup-banner"
 import { OverviewSection } from "./overview-section"
 import { HierarchySection } from "./hierarchy-section"
 import { UsersSection } from "./users-section"
@@ -65,6 +66,7 @@ export function DashboardShell() {
       {/* Conteúdo */}
       <div className="flex min-w-0 flex-1 flex-col">
         <Header onToggleSidebar={() => setMobileOpen(true)} />
+        <SetupBanner />
         <main className="flex-1 p-4 lg:p-6">
           <NavProvider navigate={select}>{renderSection()}</NavProvider>
         </main>
