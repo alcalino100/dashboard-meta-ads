@@ -15,20 +15,24 @@ function token() {
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params
   try {
-    // A Meta arquiva ao invés de deletar permanentemente
-    const url = new URL(`${BASE}/${params.id}`)
+    const url = new URL(`${BASE}/${id}`)
     const body = new URLSearchParams()
     body.set("status", "ARCHIVED")
     body.set("access_token", token())
+
     const res = await fetch(url.toString(), { method: "POST", body })
     const json = await res.json()
     if (json.error) {
-      return NextResponse.json({ error: json.error.message, code: json.error.code }, { status: 400 })
+      return NextResponse.json(
+        { error: json.error.message, code: json.error.code },
+        { status: 400 },
+      )
     }
-    return NextResponse.json({ success: true, id: params.id, archived: true })
+    return NextResponse.json({ success: true, id })
   } catch (e) {
     const err = e as Error
     return NextResponse.json({ error: err.message }, { status: 500 })

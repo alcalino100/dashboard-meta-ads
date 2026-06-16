@@ -15,23 +15,21 @@ function token() {
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params
   try {
     const { status } = (await req.json()) as { status: "ACTIVE" | "PAUSED" }
     if (status !== "ACTIVE" && status !== "PAUSED") {
       return NextResponse.json({ error: "status deve ser ACTIVE ou PAUSED" }, { status: 400 })
     }
 
-    const url = new URL(`${BASE}/${params.id}`)
+    const url = new URL(`${BASE}/${id}`)
     const body = new URLSearchParams()
     body.set("status", status)
     body.set("access_token", token())
 
-    const res = await fetch(url.toString(), {
-      method: "POST",
-      body,
-    })
+    const res = await fetch(url.toString(), { method: "POST", body })
     const json = await res.json()
     if (json.error) {
       return NextResponse.json(
@@ -39,7 +37,7 @@ export async function POST(
         { status: 400 },
       )
     }
-    return NextResponse.json({ success: true, id: params.id, status })
+    return NextResponse.json({ success: true, id, status })
   } catch (e) {
     const err = e as Error
     return NextResponse.json({ error: err.message }, { status: 500 })
