@@ -3,7 +3,7 @@
 import { useState } from "react"
 import {
   Plug, CheckCircle2, AlertTriangle, XCircle, RefreshCw, Database,
-  ArrowRight, Loader2, KeyRound, Plus, Trash2, Eye, EyeOff, Copy, Check, X,
+  ArrowRight, Loader2, KeyRound, Plus, Trash2, X,
 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,22 +14,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { fmtCurrency } from "@/lib/format"
 import { useStatus, useAccounts } from "@/lib/use-meta"
+import { useConnections, createItem, deleteItem, patchItem, testConnection, type Connection } from "@/lib/use-store"
+import { mutate as globalMutate } from "swr"
 import { entities, syncJobs, metricDefs, messageMetrics, type JobStatus } from "@/lib/mock-data"
 
 const REQUIRED_SCOPES = ["ads_read", "ads_management", "business_management"]
-
-type TokenEntry = {
-  id: string
-  label: string
-  appId: string
-  accessToken: string
-  createdAt: string
-  active: boolean
-}
-
-function generateId() {
-  return Math.random().toString(36).slice(2, 10)
-}
 
 function accountStatusCfg(status: number) {
   if (status === 1) return { label: "Ativa", cls: "text-success", bg: "border-success/20 bg-success/10" }
@@ -45,45 +34,12 @@ const jobCfg: Record<JobStatus, { label: string; cls: string }> = {
   failed: { label: "Falha total", cls: "bg-destructive/15 text-destructive" },
 }
 
-function MaskedToken({ value }: { value: string }) {
-  const [show, setShow] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  const copy = () => {
-    navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="font-mono text-xs text-muted-foreground">
-        {show ? value : value.slice(0, 8) + "•".repeat(12) + value.slice(-4)}
-      </span>
-      <button
-        type="button"
-        onClick={() => setShow((s) => !s)}
-        aria-label={show ? "Ocultar token" : "Mostrar token"}
-        className="text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {show ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-      </button>
-      <button
-        type="button"
-        onClick={copy}
-        aria-label="Copiar token"
-        className="text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
-      </button>
-    </div>
-  )
-}
-
-function TokenManager() {
-  const [tokens, setTokens] = useState<TokenEntry[]>([])
+function TokenManager({ onRefetch }: { onRefetch: () => void }) {
+  const { connections, isLoading } = useConnections()
   const [showForm, setShowForm] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const [label, setLabel] = useState("")
   const [appId, setAppId] = useState("")
@@ -91,53 +47,64 @@ function TokenManager() {
   const [formError, setFormError] = useState("")
 
   const openForm = () => {
-    setLabel("")
-    setAppId("")
-    setAccessToken("")
-    setFormError("")
-    setShowForm(true)
+    setLabel(""); setAppId(""); setAccessToken(""); setFormError(""); setShowForm(true)
   }
-
   const closeForm = () => {
-    setLabel("")
-    setAppId("")
-    setAccessToken("")
-    setFormError("")
-    setShowForm(false)
+    setLabel(""); setAppId(""); setAccessToken(""); setFormError(""); setShowForm(false)
   }
 
-  const addToken = () => {
+  const refresh = async () => { await globalMutate("/api/store/connections"); onRefetch() }
+
+  const addToken = async () => {
     if (!label.trim()) { setFormError("Informe um nome para identificar este token."); return }
-    if (!appId.trim()) { setFormError("Informe o App ID do Meta for Developers."); return }
-    if (accessToken.length < 20) { setFormError("O Access Token parece inválido (muito curto)."); return }
-
-    const newToken: TokenEntry = {
-      id: generateId(),
-      label: label.trim(),
-      appId: appId.trim(),
-      accessToken: accessToken.trim(),
-      createdAt: new Date().toLocaleDateString("pt-BR"),
-      active: tokens.length === 0,
-    }
-    setTokens((prev) => [...prev, newToken])
-    closeForm()
-  }
-
-  const removeToken = (id: string) => {
-    setTokens((prev) => {
-      const updated = prev.filter((t) => t.id !== id)
-      // Se o token removido era o ativo e ainda há tokens, ativa o primeiro
-      const removedWasActive = prev.find((t) => t.id === id)?.active
-      if (removedWasActive && updated.length > 0) {
-        return updated.map((t, i) => ({ ...t, active: i === 0 }))
+    if (!/^\d{10,}$/.test(appId.trim())) { setFormError("App ID inválido — use apenas números (mínimo 10 dígitos)."); return }
+    if (accessToken.trim().length < 50) { setFormError("Token muito curto — use um Long-Lived Token do Meta for Developers."); return }
+    setSaving(true)
+    try {
+      const isFirst = connections.length === 0
+      const created = await createItem("connections", {
+        name: label.trim(), app_id: appId.trim(), access_token: accessToken.trim(), status: "token_expired",
+      })
+      if (isFirst && created?.item?.id) {
+        await patchItem("connections", { id: created.item.id, status: "connected" })
       }
-      return updated
-    })
-    setDeleteId(null)
+      closeForm()
+      await refresh()
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "Erro ao salvar token.")
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const setActive = (id: string) => {
-    setTokens((prev) => prev.map((t) => ({ ...t, active: t.id === id })))
+  const removeToken = async (id: string) => {
+    setBusyId(id)
+    try {
+      const removed = connections.find((c) => c.id === id)
+      await deleteItem("connections", id)
+      if (removed?.status === "connected") {
+        const next = connections.find((c) => c.id !== id)
+        if (next) await patchItem("connections", { id: next.id, status: "connected" })
+      }
+      setDeleteId(null)
+      await refresh()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const setActive = async (id: string) => {
+    setBusyId(id)
+    try {
+      await Promise.all(
+        connections.filter((c) => c.status === "connected" && c.id !== id)
+          .map((c) => patchItem("connections", { id: c.id, status: "token_expired" })),
+      )
+      await patchItem("connections", { id, status: "connected" })
+      await refresh()
+    } finally {
+      setBusyId(null)
+    }
   }
 
   return (
@@ -210,8 +177,11 @@ function TokenManager() {
               </p>
             )}
             <div className="mt-3 flex gap-2">
-              <Button size="sm" onClick={addToken}>Salvar token</Button>
-              <Button size="sm" variant="ghost" onClick={closeForm}>Cancelar</Button>
+              <Button size="sm" onClick={addToken} disabled={saving} className="gap-1.5">
+                {saving && <Loader2 className="size-4 animate-spin" />}
+                {saving ? "Salvando..." : "Salvar token"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={closeForm} disabled={saving}>Cancelar</Button>
             </div>
             <p className="mt-3 rounded-md border border-warning/20 bg-warning/10 p-2.5 text-xs text-warning">
               ⚠️ Gere um token de longa duração (Long-Lived Token) no Meta for Developers.
@@ -221,7 +191,7 @@ function TokenManager() {
         )}
 
         <CardContent className="p-0">
-          {tokens.length === 0 && !showForm ? (
+          {connections.length === 0 && !showForm && !isLoading ? (
             <div className="flex flex-col items-center gap-3 py-12 text-center">
               <KeyRound className="size-8 text-muted-foreground/40" />
               <div>
@@ -234,7 +204,7 @@ function TokenManager() {
                 <Plus className="size-4" /> Adicionar primeiro token
               </Button>
             </div>
-          ) : tokens.length > 0 ? (
+          ) : isLoading || connections.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -248,51 +218,66 @@ function TokenManager() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tokens.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="font-medium text-foreground">{t.label}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{t.appId}</TableCell>
-                      <TableCell><MaskedToken value={t.accessToken} /></TableCell>
-                      <TableCell className="text-xs text-muted-foreground tabular-nums">{t.createdAt}</TableCell>
-                      <TableCell>
-                        {t.active ? (
-                          <span className="inline-flex items-center gap-1 rounded-md border border-success/20 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-                            <CheckCircle2 className="size-3" /> Ativo
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => setActive(t.id)}
-                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
-                          >
-                            Definir ativo
-                          </button>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {deleteId === t.id ? (
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="text-xs text-muted-foreground">Confirmar?</span>
-                            <button
-                              onClick={() => removeToken(t.id)}
-                              className="text-xs font-semibold text-destructive hover:underline"
-                            >Sim</button>
-                            <button
-                              onClick={() => setDeleteId(null)}
-                              className="text-xs text-muted-foreground hover:underline"
-                            >Não</button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteId(t.id)}
-                            aria-label={`Remover token ${t.label}`}
-                            className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          >
-                            <Trash2 className="size-3.5" /> Remover
-                          </button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {isLoading
+                    ? [1, 2, 3].map((i) => (
+                        <TableRow key={i}>
+                          {[1, 2, 3, 4, 5, 6].map((j) => (
+                            <TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    : connections.map((t) => (
+                        <TableRow key={t.id}>
+                          <TableCell className="font-medium text-foreground">{t.name}</TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{t.app_id ?? "—"}</TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{"••••••••••••"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground tabular-nums">
+                            {new Date(t.created_at).toLocaleDateString("pt-BR")}
+                          </TableCell>
+                          <TableCell>
+                            {t.status === "connected" ? (
+                              <span className="inline-flex items-center gap-1 rounded-md border border-success/20 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+                                <CheckCircle2 className="size-3" /> Ativo
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setActive(t.id)}
+                                disabled={busyId === t.id}
+                                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-60"
+                              >
+                                {busyId === t.id && <Loader2 className="size-3 animate-spin" />}
+                                Definir como principal
+                              </button>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {deleteId === t.id ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <span className="text-xs text-muted-foreground">Confirmar?</span>
+                                <button
+                                  onClick={() => removeToken(t.id)}
+                                  disabled={busyId === t.id}
+                                  className="inline-flex items-center gap-1 text-xs font-semibold text-destructive hover:underline disabled:opacity-60"
+                                >
+                                  {busyId === t.id && <Loader2 className="size-3 animate-spin" />}Sim
+                                </button>
+                                <button
+                                  onClick={() => setDeleteId(null)}
+                                  className="text-xs text-muted-foreground hover:underline"
+                                >Não</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setDeleteId(t.id)}
+                                aria-label={`Remover token ${t.name}`}
+                                className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                              >
+                                <Trash2 className="size-3.5" /> Remover
+                              </button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
                 </TableBody>
               </Table>
             </div>
@@ -306,19 +291,31 @@ function TokenManager() {
 function Connections() {
   const { data: status, error: statusError, isLoading: statusLoading, mutate: refetchStatus } = useStatus()
   const { data: accountsData, isLoading: accountsLoading, mutate: refetchAccounts } = useAccounts()
+  const { connections } = useConnections()
+  const [testing, setTesting] = useState(false)
 
   const connected = status?.connected
   const missingScopes = REQUIRED_SCOPES.filter((s) => !(status?.permissions ?? []).includes(s))
   const accounts = accountsData?.accounts ?? []
 
-  const test = () => {
-    refetchStatus()
-    refetchAccounts()
+  const refetch = () => { refetchStatus(); refetchAccounts() }
+
+  const test = async () => {
+    const active = connections.find((c) => c.status === "connected") ?? connections[0]
+    setTesting(true)
+    try {
+      if (active) await testConnection(active.id)
+    } catch {
+      // erro tratado pelo status abaixo
+    } finally {
+      setTesting(false)
+      refetch()
+    }
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <TokenManager />
+      <TokenManager onRefetch={refetch} />
 
       {/* Status da conexão ativa */}
       <Card className="p-0">
@@ -348,8 +345,8 @@ function Connections() {
                   <XCircle className="size-3.5" /> Não conectado
                 </span>
               )}
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={test} disabled={statusLoading}>
-                {statusLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={test} disabled={statusLoading || testing}>
+                {statusLoading || testing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                 Testar conexão
               </Button>
             </div>
@@ -526,7 +523,7 @@ function SyncJobs() {
   )
 }
 
-const groupLabels: Record<string, string> = { core: "Volume", efficiency: "Eficiência", actions: "Ações & Conversões" }
+const groupLabels: Record<string, string> = { core: "Volume", efficiency: "Eficiência", actions: "Ações & Convers��es" }
 
 function Metrics() {
   const groups = ["core", "efficiency", "actions"]
