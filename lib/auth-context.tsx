@@ -1,6 +1,12 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react"
 import { supabaseBrowser } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
 
@@ -19,7 +25,10 @@ const Ctx = createContext<AuthCtx | null>(null)
 function toUser(u: User | null): AuthCtx["user"] {
   if (!u) return null
   return {
-    name: u.user_metadata?.full_name ?? u.email?.split("@")[0] ?? "Usuário",
+    name:
+      (u.user_metadata?.full_name as string | undefined) ??
+      u.email?.split("@")[0] ??
+      "Usuário",
     email: u.email ?? "",
   }
 }
@@ -27,10 +36,11 @@ function toUser(u: User | null): AuthCtx["user"] {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>("loading")
   const [user, setUser] = useState<AuthCtx["user"]>(null)
-  const sb = supabaseBrowser()
 
   useEffect(() => {
-    // Restore existing session on mount
+    const sb = supabaseBrowser()
+
+    // Restaurar sessão existente
     sb.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
         setUser(toUser(data.session.user))
@@ -40,21 +50,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    // Listen for auth changes (login, logout, token refresh)
-    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+    // Escutar mudanças de auth (login, logout, refresh)
+    const {
+      data: { subscription },
+    } = sb.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(toUser(session.user))
         setState("authenticated")
       } else {
         setUser(null)
-        setState("anonymous")
+        setState((prev) => (prev === "authenticated" ? "anonymous" : prev))
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [sb])
+  }, [])
 
-  const signIn = async (email: string, password: string): Promise<boolean> => {
+  const signIn = async (
+    email: string,
+    password: string
+  ): Promise<boolean> => {
+    const sb = supabaseBrowser()
     const { error } = await sb.auth.signInWithPassword({ email, password })
     if (error) {
       console.error("signIn error:", error.message)
@@ -64,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    const sb = supabaseBrowser()
     await sb.auth.signOut()
     setUser(null)
     setState("anonymous")
@@ -71,7 +88,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const expire = () => setState("expired")
 
-  return <Ctx.Provider value={{ state, user, signIn, signOut, expire }}>{children}</Ctx.Provider>
+  return (
+    <Ctx.Provider value={{ state, user, signIn, signOut, expire }}>
+      {children}
+    </Ctx.Provider>
+  )
 }
 
 export function useAuth() {

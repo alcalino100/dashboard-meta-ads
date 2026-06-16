@@ -1,12 +1,15 @@
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@supabase/supabase-js"
 
-let cached: ReturnType<typeof createBrowserClient> | null = null
+let cached: ReturnType<typeof createClient> | null = null
 
 export function supabaseBrowser() {
   if (cached) return cached
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) throw new Error("NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY não configurados.")
-  cached = createBrowserClient(url, key)
+  if (!url || !key)
+    throw new Error(
+      "Variáveis NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY não configuradas."
+    )
+  cached = createClient(url, key)
   return cached
 }
