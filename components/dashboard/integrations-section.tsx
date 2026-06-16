@@ -1,29 +1,23 @@
 "use client"
 
-import { useState } from "react"
 import {
-  Plug, CheckCircle2, AlertTriangle, ShieldOff, XCircle, RefreshCw, Plus, Database, ArrowRight,
+  Plug, CheckCircle2, AlertTriangle, XCircle, RefreshCw, Database, ArrowRight, Loader2, KeyRound,
 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,
-} from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import {
-  connections, entities, syncJobs, metricDefs, messageMetrics,
-  type ConnStatus, type JobStatus,
-} from "@/lib/mock-data"
+import { fmtCurrency } from "@/lib/format"
+import { useStatus, useAccounts } from "@/lib/use-meta"
+import { entities, syncJobs, metricDefs, messageMetrics, type JobStatus } from "@/lib/mock-data"
 
-const connCfg: Record<ConnStatus, { icon: React.ComponentType<{ className?: string }>; label: string; cls: string; bg: string }> = {
-  connected: { icon: CheckCircle2, label: "Conectado", cls: "text-success", bg: "border-success/20 bg-success/10" },
-  expiring: { icon: AlertTriangle, label: "Token expirando", cls: "text-warning", bg: "border-warning/20 bg-warning/10" },
-  no_permission: { icon: ShieldOff, label: "Sem permissão", cls: "text-destructive", bg: "border-destructive/20 bg-destructive/10" },
-  sync_error: { icon: XCircle, label: "Erro de sincronização", cls: "text-destructive", bg: "border-destructive/20 bg-destructive/10" },
+const REQUIRED_SCOPES = ["ads_read", "ads_management", "business_management"]
+
+function accountStatusCfg(status: number) {
+  if (status === 1) return { label: "Ativa", cls: "text-success", bg: "border-success/20 bg-success/10" }
+  if (status === 2 || status === 101) return { label: "Desativada", cls: "text-destructive", bg: "border-destructive/20 bg-destructive/10" }
+  return { label: "Pendente", cls: "text-warning", bg: "border-warning/20 bg-warning/10" }
 }
 
 const jobCfg: Record<JobStatus, { label: string; cls: string }> = {
@@ -35,90 +29,148 @@ const jobCfg: Record<JobStatus, { label: string; cls: string }> = {
 }
 
 function Connections() {
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState("")
-  const [error, setError] = useState("")
+  const { data: status, error: statusError, isLoading: statusLoading, mutate: refetchStatus } = useStatus()
+  const { data: accountsData, isLoading: accountsLoading, mutate: refetchAccounts } = useAccounts()
 
-  const submit = () => {
-    if (!name.trim()) return setError("Informe um nome para a conexão.")
-    setError("")
-    setName("")
-    setOpen(false)
+  const connected = status?.connected
+  const missingScopes = REQUIRED_SCOPES.filter((s) => !(status?.permissions ?? []).includes(s))
+  const accounts = accountsData?.accounts ?? []
+
+  const test = () => {
+    refetchStatus()
+    refetchAccounts()
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{connections.length} conexões Meta Business</p>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="gap-1.5"><Plus className="size-4" /> Nova conexão</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Cadastrar conexão Meta</DialogTitle>
-              <DialogDescription>Conecte um Business Manager via System User token</DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-3 py-2">
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm">Nome da conexão</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Colucci Group BM" aria-invalid={!!error} className={cn(error && "border-destructive")} />
-                {error && <p className="text-xs text-destructive">{error}</p>}
+      {/* Card de status da conexão */}
+      <Card className="p-0">
+        <CardContent className="flex flex-col gap-4 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "flex size-11 items-center justify-center rounded-md border",
+                connected ? "border-success/20 bg-success/10" : "border-destructive/20 bg-destructive/10",
+              )}>
+                <Plug className={cn("size-5", connected ? "text-success" : "text-destructive")} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label className="text-sm">Business ID</Label>
-                  <Input placeholder="178402993115" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label className="text-sm">App ID</Label>
-                  <Input placeholder="994201" />
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm">System User Token</Label>
-                <Input type="password" placeholder="Token nunca exposto no client" />
-                <p className="text-xs text-muted-foreground">Armazenado de forma segura no servidor. Requer escopos ads_read e ads_management.</p>
+              <div className="leading-tight">
+                <p className="text-sm font-semibold text-foreground">
+                  {statusLoading ? "Verificando conexão..." : connected ? status?.user?.name : "Não conectado"}
+                </p>
+                <p className="font-mono text-xs text-muted-foreground">
+                  App ID {status?.appId ?? "—"}
+                </p>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button size="sm" onClick={submit}>Conectar</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            <div className="flex items-center gap-2">
+              {connected ? (
+                <span className="inline-flex items-center gap-1 rounded-md border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
+                  <CheckCircle2 className="size-3.5" /> Conectado
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-md border border-destructive/20 bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive">
+                  <XCircle className="size-3.5" /> Falha
+                </span>
+              )}
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={test} disabled={statusLoading}>
+                {statusLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                Testar conexão
+              </Button>
+            </div>
+          </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {connections.map((c) => {
-          const cfg = connCfg[c.status]
-          const Icon = cfg.icon
-          return (
-            <Card key={c.id} className="p-0">
-              <CardContent className="flex flex-col gap-3 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex size-9 items-center justify-center rounded-md bg-secondary">
-                      <Plug className="size-4 text-foreground" />
-                    </div>
-                    <div className="leading-tight">
-                      <p className="text-sm font-medium text-foreground">{c.name}</p>
-                      <p className="font-mono text-xs text-muted-foreground">BM {c.businessId}</p>
-                    </div>
-                  </div>
-                  <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium", cfg.bg, cfg.cls)}>
-                    <Icon className="size-3.5" /> {cfg.label}
+          {statusError && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-destructive">
+              {statusError.message}
+            </p>
+          )}
+          {status && !connected && status.error && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-destructive">
+              {status.error}
+            </p>
+          )}
+
+          {/* Escopos / permissões */}
+          <div className="border-t border-border pt-3">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <KeyRound className="size-3.5" /> Permissões do token
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {REQUIRED_SCOPES.map((s) => {
+                const granted = (status?.permissions ?? []).includes(s)
+                return (
+                  <span key={s} className={cn(
+                    "inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-[11px]",
+                    granted ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive",
+                  )}>
+                    {granted ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
+                    {s}
                   </span>
-                </div>
-                <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
-                  <span>{c.accounts} conta(s) · App {c.appId}</span>
-                  <span className="tabular-nums">Sync {c.lastSync}</span>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                )
+              })}
+            </div>
+            {missingScopes.length > 0 && connected && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-warning">
+                <AlertTriangle className="size-3.5" /> Faltam escopos: {missingScopes.join(", ")}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Contas de anúncio reais */}
+      <Card className="overflow-hidden p-0">
+        <CardHeader className="flex-row items-center justify-between p-4">
+          <div>
+            <CardTitle className="text-base">Contas de anúncio</CardTitle>
+            <CardDescription>
+              {accountsLoading ? "Carregando..." : `${accounts.length} conta(s) acessível(is) pelo token`}
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {accountsLoading && !accountsData ? (
+            <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Buscando contas...
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Conta</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Moeda</TableHead>
+                    <TableHead className="text-right">Gasto histórico</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {accounts.map((a) => {
+                    const cfg = accountStatusCfg(a.status)
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-medium text-foreground">{a.name}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{a.accountId}</TableCell>
+                        <TableCell className="text-muted-foreground">{a.currency}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
+                          {fmtCurrency(a.amountSpent)}
+                        </TableCell>
+                        <TableCell>
+                          <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium", cfg.bg, cfg.cls)}>
+                            {cfg.label}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

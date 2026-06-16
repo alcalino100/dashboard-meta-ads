@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Pause, Copy, Pencil } from "lucide-react"
 import { StatusBadge } from "./status-badge"
-import type { Campaign } from "@/lib/mock-data"
+import type { CampaignRow } from "@/lib/use-meta"
 import { fmtCurrency, fmtNumber, fmtPercent } from "@/lib/format"
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -22,7 +22,7 @@ export function CampaignDrawer({
   open,
   onOpenChange,
 }: {
-  campaign: Campaign | null
+  campaign: CampaignRow | null
   open: boolean
   onOpenChange: (o: boolean) => void
 }) {
@@ -38,7 +38,7 @@ export function CampaignDrawer({
               </div>
               <SheetTitle className="text-balance text-left">{campaign.name}</SheetTitle>
               <SheetDescription className="text-left">
-                {campaign.account} · {campaign.id} · Responsável: {campaign.owner}
+                {campaign.account} · ID {campaign.id}
               </SheetDescription>
             </SheetHeader>
 
@@ -63,7 +63,7 @@ export function CampaignDrawer({
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <Metric label="Gasto" value={fmtCurrency(campaign.spend)} />
-                  <Metric label="Orçamento" value={fmtCurrency(campaign.budget)} />
+                  <Metric label="Orçamento" value={campaign.budget > 0 ? fmtCurrency(campaign.budget) : "Nível conjunto"} />
                   <Metric label="Impressões" value={fmtNumber(campaign.impressions)} />
                   <Metric label="Cliques" value={fmtNumber(campaign.clicks)} />
                   <Metric label="CPC" value={fmtCurrency(campaign.cpc)} />
@@ -77,21 +77,18 @@ export function CampaignDrawer({
 
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Histórico recente
+                  Informações
                 </p>
                 <ul className="flex flex-col gap-2">
                   {[
-                    { t: `Atualizado ${campaign.updated}`, d: "Sincronização de métricas" },
-                    { t: "Ontem", d: "Orçamento ajustado para " + fmtCurrency(campaign.budget) },
-                    { t: "2 dias atrás", d: "Criativo substituído" },
-                    { t: campaign.start, d: "Campanha iniciada" },
+                    { t: "Objetivo", d: campaign.objective },
+                    { t: "Início", d: campaign.start },
+                    { t: "Término", d: campaign.end },
+                    { t: "Última atualização", d: campaign.updated },
                   ].map((h, i) => (
-                    <li key={i} className="flex gap-3 text-sm">
-                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
-                      <div>
-                        <p className="text-foreground">{h.d}</p>
-                        <p className="text-xs text-muted-foreground">{h.t}</p>
-                      </div>
+                    <li key={i} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{h.t}</span>
+                      <span className="text-foreground">{h.d}</span>
                     </li>
                   ))}
                 </ul>

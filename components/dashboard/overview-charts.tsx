@@ -13,8 +13,10 @@ import {
   YAxis,
 } from "recharts"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
-import { trend, accountShare } from "@/lib/mock-data"
 import { fmtCompact, fmtCurrency } from "@/lib/format"
+
+type TrendPoint = { date: string; gasto: number; cliques: number; mensagens: number; custoMsg: number }
+type SharePoint = { name: string; gasto: number; mensagens: number }
 
 function TooltipBox({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
@@ -31,7 +33,7 @@ function TooltipBox({ active, payload, label }: any) {
   )
 }
 
-export function OverviewCharts() {
+export function OverviewCharts({ trend, accountShare }: { trend: TrendPoint[]; accountShare: SharePoint[] }) {
   return (
     <div className="grid gap-3 lg:grid-cols-3">
       <Card className="lg:col-span-2">

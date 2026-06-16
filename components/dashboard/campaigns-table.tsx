@@ -37,34 +37,37 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { campaigns as allCampaigns, accounts, type Campaign } from "@/lib/mock-data"
+import type { CampaignRow } from "@/lib/use-meta"
 import { fmtCurrency, fmtNumber, fmtPercent } from "@/lib/format"
 import { StatusBadge } from "./status-badge"
 import { CampaignDrawer } from "./campaign-drawer"
 
-type SortKey = keyof Pick<Campaign, "name" | "spend" | "cpc" | "ctr" | "messages" | "costPerMsg">
+type SortKey = keyof Pick<CampaignRow, "name" | "spend" | "cpc" | "ctr" | "messages" | "costPerMsg">
 
 const PER_PAGE = 8
 
-export function CampaignsTable() {
+export function CampaignsTable({ campaigns }: { campaigns: CampaignRow[] }) {
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState("Todos")
   const [objective, setObjective] = useState("Todos")
-  const [account, setAccount] = useState("Todas")
   const [sortKey, setSortKey] = useState<SortKey>("spend")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
-  const [active, setActive] = useState<Campaign | null>(null)
+  const [active, setActive] = useState<CampaignRow | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+
+  const objectiveOptions = useMemo(
+    () => ["Todos", ...Array.from(new Set(campaigns.map((c) => c.objective)))],
+    [campaigns],
+  )
 
   const filtered = useMemo(() => {
     const statusMap: Record<string, string> = { Ativo: "active", Pausado: "paused", Encerrado: "ended", "Em análise": "review" }
-    return allCampaigns
+    return campaigns
       .filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
       .filter((c) => status === "Todos" || c.status === statusMap[status])
       .filter((c) => objective === "Todos" || c.objective === objective)
-      .filter((c) => account === "Todas" || c.account === account)
       .sort((a, b) => {
         const dir = sortDir === "asc" ? 1 : -1
         const va = a[sortKey]
@@ -72,7 +75,7 @@ export function CampaignsTable() {
         if (typeof va === "string") return va.localeCompare(vb as string) * dir
         return ((va as number) - (vb as number)) * dir
       })
-  }, [query, status, objective, account, sortKey, sortDir])
+  }, [campaigns, query, status, objective, sortKey, sortDir])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const current = Math.min(page, totalPages)
@@ -102,7 +105,7 @@ export function CampaignsTable() {
       return next
     })
 
-  const openDrawer = (c: Campaign) => {
+  const openDrawer = (c: CampaignRow) => {
     setActive(c)
     setDrawerOpen(true)
   }
@@ -136,8 +139,7 @@ export function CampaignsTable() {
           />
         </div>
         <FilterSelect label="Status" value={status} onChange={setStatus} items={["Todos", "Ativo", "Pausado", "Encerrado", "Em análise"]} />
-        <FilterSelect label="Objetivo" value={objective} onChange={setObjective} items={["Todos", "Mensagens", "Conversões", "Tráfego", "Alcance", "Engajamento"]} />
-        <FilterSelect label="Conta" value={account} onChange={setAccount} items={["Todas", ...accounts.map((a) => a.name)]} />
+        <FilterSelect label="Objetivo" value={objective} onChange={setObjective} items={objectiveOptions} />
       </div>
 
       {/* Barra de ações em massa */}
