@@ -1,16 +1,10 @@
 "use client"
 
-import { Search, Plus, Download, RefreshCw, Upload, Menu, LogOut, TimerOff, User } from "lucide-react"
+import { Search, Plus, Download, RefreshCw, Upload, Menu, LogOut, TimerOff, User, GitCompareArrows } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { useFilters } from "@/lib/filters-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,39 +12,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { accounts } from "@/lib/mock-data"
-
-function GlobalFilter({
-  label,
-  items,
-  defaultValue,
-}: {
-  label: string
-  items: string[]
-  defaultValue: string
-}) {
-  return (
-    <Select defaultValue={defaultValue}>
-      <SelectTrigger
-        aria-label={label}
-        className="h-9 w-auto min-w-[120px] gap-1 border-border bg-secondary/40 text-xs"
-      >
-        <span className="text-muted-foreground">{label}:</span>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {items.map((it) => (
-          <SelectItem key={it} value={it} className="text-xs">
-            {it}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
+import { DateFilter } from "./date-filter"
+import { AccountFilter } from "./account-filter"
 
 export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const { signOut, expire } = useAuth()
+  const { compare } = useFilters()
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
       <div className="flex flex-wrap items-center gap-2 px-4 py-3">
@@ -74,12 +41,14 @@ export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
           />
         </div>
 
-        <div className="hidden flex-wrap items-center gap-2 lg:flex">
-          <GlobalFilter label="Período" items={["Hoje", "7 dias", "14 dias", "30 dias"]} defaultValue="14 dias" />
-          <GlobalFilter label="Business" items={["Todos", ...new Set(accounts.map((a) => a.business))]} defaultValue="Todos" />
-          <GlobalFilter label="Conta" items={["Todas", ...accounts.map((a) => a.name)]} defaultValue="Todas" />
-          <GlobalFilter label="Status" items={["Todos", "Ativo", "Pausado", "Em análise"]} defaultValue="Todos" />
-          <GlobalFilter label="Objetivo" items={["Todos", "Mensagens", "Conversões", "Tráfego", "Alcance"]} defaultValue="Todos" />
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
+          <AccountFilter />
+          <DateFilter />
+          {compare && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1.5 text-xs font-medium text-primary">
+              <GitCompareArrows className="size-3.5" /> Comparando
+            </span>
+          )}
         </div>
 
         <div className="ml-auto flex items-center gap-2">

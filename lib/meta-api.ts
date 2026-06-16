@@ -33,6 +33,20 @@ async function graph<T = any>(path: string, params: Record<string, string> = {})
   return json as T
 }
 
+// ── Datas (estilo Ads Manager) ──────────────────────────────
+// Aceita presets da Meta ou "custom:YYYY-MM-DD:YYYY-MM-DD".
+export function applyDate(params: Record<string, string>, date?: string) {
+  if (date && date.startsWith("custom:")) {
+    const [, since, until] = date.split(":")
+    if (since && until) {
+      params.time_range = JSON.stringify({ since, until })
+      return params
+    }
+  }
+  params.date_preset = date && !date.startsWith("custom:") ? date : "last_30d"
+  return params
+}
+
 // ── Mapeamentos ─────────────────────────────────────────────
 export type Status = "active" | "paused" | "ended" | "review"
 
@@ -175,21 +189,17 @@ export async function getAdAccounts(): Promise<MetaAccount[]> {
 }
 
 export async function getAccountInsights(actId: string, datePreset = "last_30d"): Promise<Insights> {
-  const r = await graph<{ data: any[] }>(`${actId}/insights`, {
-    fields: INSIGHT_FIELDS,
-    date_preset: datePreset,
-  })
+  const r = await graph<{ data: any[] }>(`${actId}/insights`, applyDate({ fields: INSIGHT_FIELDS }, datePreset))
   if (!r.data?.length) return EMPTY_INSIGHTS
   return parseInsights(r.data[0])
 }
 
 export async function getDailyTrend(actId: string, datePreset = "last_14d") {
-  const r = await graph<{ data: any[] }>(`${actId}/insights`, {
+  const r = await graph<{ data: any[] }>(`${actId}/insights`, applyDate({
     fields: "spend,inline_link_clicks,actions",
-    date_preset: datePreset,
     time_increment: "1",
-    limit: "60",
-  })
+    limit: "90",
+  }, datePreset))
   return (r.data ?? []).map((row) => {
     const spend = Number(row.spend || 0)
     const messages = messagesFrom(row.actions)
@@ -210,12 +220,11 @@ export async function getCampaigns(actId: string, accountName: string, datePrese
       fields: "name,objective,status,daily_budget,lifetime_budget,start_time,stop_time,updated_time",
       limit: "200",
     }),
-    graph<{ data: any[] }>(`${actId}/insights`, {
+    graph<{ data: any[] }>(`${actId}/insights`, applyDate({
       level: "campaign",
       fields: "campaign_id,campaign_name,spend,impressions,clicks,cpc,ctr,actions",
-      date_preset: datePreset,
       limit: "500",
-    }),
+    }, datePreset)),
   ])
 
   const insightsById = new Map<string, any>()
@@ -243,6 +252,131 @@ export async function getCampaigns(actId: string, accountName: string, datePrese
       start: c.start_time && !c.start_time.startsWith("1969") ? c.start_time.slice(0, 10).split("-").reverse().join("/") : "—",
       end: c.stop_time ? c.stop_time.slice(0, 10).split("-").reverse().join("/") : "—",
       updated: c.updated_time ? c.updated_time.slice(0, 10).split("-").reverse().join("/") : "—",
+    }
+  })
+}
+
+function fmtDate(s?: string) {
+  return s && !s.startsWith("1969") ? s.slice(0, 10).split("-").reverse().join("/") : "—"
+}
+
+// ── Conjuntos de anúncios (Ad Sets) ─────────────────────────
+export type MetaAdSet = {
+  id: string
+  name: string
+  campaignId: string
+  status: Status
+  spend: number
+  impressions: number
+  clicks: number
+  cpc: number
+  ctr: number
+  messages: number
+  costPerMsg: number
+  budget: number
+  optimization: string
+  billing: string
+  placements: string
+  start: string
+  end: string
+}
+
+export async function getAdSets(actId: string, parentId: string | null, datePreset = "last_30d"): Promise<MetaAdSet[]> {
+  const node = parentId ? parentId : actId
+  const [setsRes, insRes] = await Promise.all([
+    graph<{ data: any[] }>(`${node}/adsets`, {
+      fields: "name,campaign_id,status,daily_budget,lifetime_budget,optimization_goal,billing_event,targeting{publisher_platforms},start_time,end_time",
+      limit: "200",
+    }),
+    graph<{ data: any[] }>(`${node}/insights`, applyDate({
+      level: "adset",
+      fields: "adset_id,spend,impressions,clicks,cpc,ctr,actions",
+      limit: "500",
+    }, datePreset)),
+  ])
+  const byId = new Map<string, any>()
+  for (const row of insRes.data ?? []) byId.set(row.adset_id, row)
+  return (setsRes.data ?? []).map((s) => {
+    const ins = byId.get(s.id)
+    const spend = Number(ins?.spend || 0)
+    const messages = messagesFrom(ins?.actions)
+    const platforms = s.targeting?.publisher_platforms as string[] | undefined
+    return {
+      id: s.id,
+      name: s.name,
+      campaignId: s.campaign_id,
+      status: mapStatus(s.status),
+      spend,
+      impressions: Number(ins?.impressions || 0),
+      clicks: Number(ins?.clicks || 0),
+      cpc: Number(ins?.cpc || 0),
+      ctr: Number(ins?.ctr || 0),
+      messages,
+      costPerMsg: messages > 0 ? +(spend / messages).toFixed(2) : 0,
+      budget: Number(s.daily_budget || s.lifetime_budget || 0) / 100,
+      optimization: s.optimization_goal ?? "—",
+      billing: s.billing_event ?? "—",
+      placements: platforms?.length ? platforms.join(", ") : "Automático",
+      start: fmtDate(s.start_time),
+      end: fmtDate(s.end_time),
+    }
+  })
+}
+
+// ── Anúncios (Ads) ──────────────────────────────────────────
+export type MetaAd = {
+  id: string
+  name: string
+  adsetId: string
+  campaignId: string
+  status: Status
+  spend: number
+  impressions: number
+  clicks: number
+  cpc: number
+  ctr: number
+  messages: number
+  costPerMsg: number
+  thumbnail: string | null
+  title: string
+  body: string
+}
+
+export async function getAds(actId: string, parentId: string | null, datePreset = "last_30d"): Promise<MetaAd[]> {
+  const node = parentId ? parentId : actId
+  const [adsRes, insRes] = await Promise.all([
+    graph<{ data: any[] }>(`${node}/ads`, {
+      fields: "name,adset_id,campaign_id,status,creative{thumbnail_url,title,body}",
+      limit: "200",
+    }),
+    graph<{ data: any[] }>(`${node}/insights`, applyDate({
+      level: "ad",
+      fields: "ad_id,spend,impressions,clicks,cpc,ctr,actions",
+      limit: "500",
+    }, datePreset)),
+  ])
+  const byId = new Map<string, any>()
+  for (const row of insRes.data ?? []) byId.set(row.ad_id, row)
+  return (adsRes.data ?? []).map((a) => {
+    const ins = byId.get(a.id)
+    const spend = Number(ins?.spend || 0)
+    const messages = messagesFrom(ins?.actions)
+    return {
+      id: a.id,
+      name: a.name,
+      adsetId: a.adset_id,
+      campaignId: a.campaign_id,
+      status: mapStatus(a.status),
+      spend,
+      impressions: Number(ins?.impressions || 0),
+      clicks: Number(ins?.clicks || 0),
+      cpc: Number(ins?.cpc || 0),
+      ctr: Number(ins?.ctr || 0),
+      messages,
+      costPerMsg: messages > 0 ? +(spend / messages).toFixed(2) : 0,
+      thumbnail: a.creative?.thumbnail_url ?? null,
+      title: a.creative?.title ?? a.name,
+      body: a.creative?.body ?? "—",
     }
   })
 }

@@ -8,11 +8,15 @@ const MAX_ACCOUNTS = 8
 
 export async function GET(req: Request) {
   try {
-    const range = new URL(req.url).searchParams.get("range") ?? "last_30d"
-    const trendRange = range === "last_7d" ? "last_7d" : "last_30d"
+    const params = new URL(req.url).searchParams
+    const range = params.get("range") ?? "last_30d"
+    const account = params.get("account")
+    const trendRange = range
 
     const accounts = await getAdAccounts()
-    const spenders = accounts.filter((a) => a.amountSpent > 0).slice(0, MAX_ACCOUNTS)
+    const spenders = account
+      ? accounts.filter((a) => a.id === account)
+      : accounts.filter((a) => a.amountSpent > 0).slice(0, MAX_ACCOUNTS)
 
     const results = await Promise.all(
       spenders.map(async (a) => ({

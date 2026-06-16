@@ -13,6 +13,8 @@ import {
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { alerts, events, accounts } from "@/lib/mock-data"
+import { ConnectionGate } from "./states"
+import { useNavigate } from "@/lib/nav-context"
 
 const sevConfig = {
   high: { icon: AlertCircle, cls: "text-destructive", bg: "bg-destructive/10 border-destructive/20", label: "Alta" },
@@ -21,13 +23,15 @@ const sevConfig = {
 }
 
 export function AlertsSection() {
+  const navigate = useNavigate()
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Alertas e automações</h2>
-        <p className="text-sm text-muted-foreground">Monitoramento de performance e regras operacionais</p>
+        <p className="text-sm text-muted-foreground">Regras operacionais vinculadas às conexões Meta ativas</p>
       </div>
 
+      <ConnectionGate onGoToConnections={() => navigate("Integrações")}>
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Lista de alertas */}
         <Card className="lg:col-span-2">
@@ -148,6 +152,7 @@ export function AlertsSection() {
           </ul>
         </CardContent>
       </Card>
+      </ConnectionGate>
     </div>
   )
 }

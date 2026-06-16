@@ -13,6 +13,7 @@ import { IntegrationsSection } from "./integrations-section"
 import { GoalsSection } from "./goals-section"
 import { IntelligenceSection } from "./intelligence-section"
 import { PlaceholderSection } from "./placeholder-section"
+import { NavProvider } from "@/lib/nav-context"
 import type { NavItem } from "@/lib/mock-data"
 
 export function DashboardShell() {
@@ -64,7 +65,9 @@ export function DashboardShell() {
       {/* Conteúdo */}
       <div className="flex min-w-0 flex-1 flex-col">
         <Header onToggleSidebar={() => setMobileOpen(true)} />
-        <main className="flex-1 p-4 lg:p-6">{renderSection()}</main>
+        <main className="flex-1 p-4 lg:p-6">
+          <NavProvider navigate={select}>{renderSection()}</NavProvider>
+        </main>
       </div>
     </div>
   )
