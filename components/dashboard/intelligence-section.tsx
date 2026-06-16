@@ -5,6 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { cn } from "@/lib/utils"
 import { ranking, heatmap, recommendations, insights } from "@/lib/mock-data"
 import { fmtCurrency } from "@/lib/format"
+import { ConnectionGate } from "./states"
+import { useNavigate } from "@/lib/nav-context"
 
 const best = ranking.slice(0, 5)
 const worst = [...ranking].reverse().slice(0, 5)
@@ -46,6 +48,7 @@ function RankList({ data, best }: { data: typeof ranking; best: boolean }) {
 }
 
 export function IntelligenceSection() {
+  const navigate = useNavigate()
   const objectives = heatmap[0].values.map((v) => v.objective)
   return (
     <div className="flex flex-col gap-4">
@@ -54,6 +57,7 @@ export function IntelligenceSection() {
         <p className="text-sm text-muted-foreground">Rankings, eficiência por objetivo e recomendações priorizadas</p>
       </div>
 
+      <ConnectionGate onGoToConnections={() => navigate("Integrações")}>
       {/* Insights automáticos */}
       <div className="grid gap-3 md:grid-cols-3">
         {insights.map((text, i) => (
@@ -149,6 +153,7 @@ export function IntelligenceSection() {
           })}
         </CardContent>
       </Card>
+      </ConnectionGate>
     </div>
   )
 }
