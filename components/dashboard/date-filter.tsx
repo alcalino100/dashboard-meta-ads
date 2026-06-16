@@ -27,16 +27,15 @@ export function DateFilter() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          aria-label="Selecionar período"
-          className="h-9 gap-2 border-border bg-secondary/40"
-        >
-          <Calendar className="size-4 text-muted-foreground" />
-          <span className="text-xs font-medium">{presetLabel(range)}</span>
-        </Button>
+      <PopoverTrigger
+        aria-label="Selecionar período"
+        className={cn(
+          "inline-flex h-9 items-center gap-2 rounded-md border border-border bg-secondary/40 px-3 text-xs font-medium text-foreground transition-colors hover:bg-secondary",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        )}
+      >
+        <Calendar className="size-4 text-muted-foreground" />
+        <span>{presetLabel(range)}</span>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-0">
         <div className="p-2">

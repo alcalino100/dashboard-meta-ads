@@ -82,8 +82,8 @@ export function UsersSection() {
           <p className="text-sm text-muted-foreground">Gerencie acessos por conta e por perfil</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="gap-1.5"><UserPlus className="size-4" /> Convidar usuário</Button>
+          <DialogTrigger render={<Button size="sm" className="gap-1.5" />}>
+            <UserPlus className="size-4" /> Convidar usuário
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -192,10 +192,10 @@ export function UsersSection() {
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-7" aria-label={`Ações de ${u.name}`}>
-                            <MoreHorizontal className="size-4" />
-                          </Button>
+                        <DropdownMenuTrigger
+                          render={<Button variant="ghost" size="icon" className="size-7" aria-label={`Ações de ${u.name}`} />}
+                        >
+                          <MoreHorizontal className="size-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem

@@ -38,10 +38,8 @@ export function NewCampaignModal() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5">
-          <Plus className="size-4" /> Nova campanha
-        </Button>
+      <DialogTrigger render={<Button size="sm" className="gap-1.5" />}>
+        <Plus className="size-4" /> Nova campanha
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>

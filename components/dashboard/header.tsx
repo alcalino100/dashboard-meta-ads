@@ -53,11 +53,9 @@ export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
         <div className="ml-auto flex items-center gap-2">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" className="h-9 gap-1.5">
-                <Plus className="size-4" />
-                <span className="hidden sm:inline">Ações</span>
-              </Button>
+            <DropdownMenuTrigger render={<Button size="sm" className="h-9 gap-1.5" />}>
+              <Plus className="size-4" />
+              <span className="hidden sm:inline">Ações</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem>
@@ -76,12 +74,13 @@ export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
           </DropdownMenu>
 
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button aria-label="Menu da conta" className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
-                <Avatar className="size-9 border border-border">
-                  <AvatarFallback className="bg-secondary text-xs">RM</AvatarFallback>
-                </Avatar>
-              </button>
+            <DropdownMenuTrigger
+              aria-label="Menu da conta"
+              className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Avatar className="size-9 border border-border">
+                <AvatarFallback className="bg-secondary text-xs">RM</AvatarFallback>
+              </Avatar>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem>

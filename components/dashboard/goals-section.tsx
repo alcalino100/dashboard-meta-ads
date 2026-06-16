@@ -56,8 +56,8 @@ export function GoalsSection() {
 
   const dialog = (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5"><Plus className="size-4" /> Nova meta</Button>
+      <DialogTrigger render={<Button size="sm" className="gap-1.5" />}>
+        <Plus className="size-4" /> Nova meta
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

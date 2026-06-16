@@ -268,6 +268,8 @@ function RulesInner() {
         </Card>
       </div>
 
+      <ComputedAlerts rules={rules} />
+
       {/* Histórico real (auditoria) */}
       <Card>
         <CardHeader>
