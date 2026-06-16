@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import {
   Plug, CheckCircle2, AlertTriangle, XCircle, RefreshCw, Database, ArrowRight, Loader2, KeyRound,
 } from "lucide-react"
@@ -11,9 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { fmtCurrency } from "@/lib/format"
 import { useStatus, useAccounts } from "@/lib/use-meta"
-import { useConnections, testConnection } from "@/lib/use-store"
-import { CONNECTION_STATUS, TONE_CLS } from "@/lib/connection-status"
-import { entities, metricDefs, messageMetrics } from "@/lib/mock-data"
+import { entities, syncJobs, metricDefs, messageMetrics, type JobStatus } from "@/lib/mock-data"
 
 const REQUIRED_SCOPES = ["ads_read", "ads_management", "business_management"]
 
@@ -21,6 +18,14 @@ function accountStatusCfg(status: number) {
   if (status === 1) return { label: "Ativa", cls: "text-success", bg: "border-success/20 bg-success/10" }
   if (status === 2 || status === 101) return { label: "Desativada", cls: "text-destructive", bg: "border-destructive/20 bg-destructive/10" }
   return { label: "Pendente", cls: "text-warning", bg: "border-warning/20 bg-warning/10" }
+}
+
+const jobCfg: Record<JobStatus, { label: string; cls: string }> = {
+  queued: { label: "Em fila", cls: "bg-secondary text-secondary-foreground" },
+  processing: { label: "Processando", cls: "bg-primary/15 text-primary" },
+  success: { label: "Sucesso", cls: "bg-success/15 text-success" },
+  partial: { label: "Falha parcial", cls: "bg-warning/15 text-warning" },
+  failed: { label: "Falha total", cls: "bg-destructive/15 text-destructive" },
 }
 
 function Connections() {
@@ -196,81 +201,50 @@ function DataModel() {
   )
 }
 
-function relativeTime(iso: string | null) {
-  if (!iso) return "Nunca"
-  const diff = Date.now() - new Date(iso).getTime()
-  const min = Math.floor(diff / 60000)
-  if (min < 1) return "Agora"
-  if (min < 60) return `há ${min} min`
-  const h = Math.floor(min / 60)
-  if (h < 24) return `há ${h}h`
-  return `há ${Math.floor(h / 24)} dia(s)`
-}
-
 function SyncJobs() {
-  const { connections, isLoading } = useConnections()
-  const [syncing, setSyncing] = useState<string | null>(null)
-
-  const sync = async (id: string) => {
-    setSyncing(id)
-    try {
-      await testConnection(id)
-    } finally {
-      setSyncing(null)
-    }
-  }
-
   return (
     <Card className="overflow-hidden p-0">
-      <CardHeader className="p-4">
-        <CardTitle className="text-base">Status de sincronização</CardTitle>
-        <CardDescription>Última coleta e verificação por conexão Meta</CardDescription>
+      <CardHeader className="flex-row items-center justify-between p-4">
+        <div>
+          <CardTitle className="text-base">Jobs de sincronização</CardTitle>
+          <CardDescription>Histórico de coleta por conta</CardDescription>
+        </div>
+        <Button size="sm" variant="outline" className="gap-1.5"><RefreshCw className="size-4" /> Sincronizar agora</Button>
       </CardHeader>
       <CardContent className="p-0">
-        {isLoading ? (
-          <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Carregando conexões...
-          </div>
-        ) : connections.length === 0 ? (
-          <p className="p-8 text-center text-sm text-muted-foreground">Nenhuma conexão cadastrada.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Conexão</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Última sincronização</TableHead>
-                  <TableHead>Última verificação</TableHead>
-                  <TableHead className="text-right">Ação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {connections.map((c) => {
-                  const cfg = CONNECTION_STATUS[c.status] ?? CONNECTION_STATUS.connected
-                  return (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-medium text-foreground">{c.name}</TableCell>
-                      <TableCell>
-                        <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium", TONE_CLS[cfg.tone])}>
-                          {cfg.label}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground tabular-nums">{relativeTime(c.last_sync_at)}</TableCell>
-                      <TableCell className="text-muted-foreground tabular-nums">{relativeTime(c.last_test_at)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => sync(c.id)} disabled={syncing === c.id}>
-                          {syncing === c.id ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-                          Sincronizar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Job</TableHead>
+                <TableHead>Conta</TableHead>
+                <TableHead>Janela</TableHead>
+                <TableHead className="text-right">Linhas</TableHead>
+                <TableHead className="text-right">Duração</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Concluído</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {syncJobs.map((j) => {
+                const cfg = jobCfg[j.status]
+                return (
+                  <TableRow key={j.id}>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{j.id}</TableCell>
+                    <TableCell className="font-medium text-foreground">{j.account}</TableCell>
+                    <TableCell className="text-muted-foreground">{j.window}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{j.rows.toLocaleString("pt-BR")}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{j.duration}</TableCell>
+                    <TableCell>
+                      <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-medium", cfg.cls)}>{cfg.label}</span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground tabular-nums">{j.finished}</TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   )

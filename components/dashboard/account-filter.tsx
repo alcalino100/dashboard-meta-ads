@@ -2,7 +2,7 @@
 
 import { Building2 } from "lucide-react"
 import {
-  Select, SelectContent, SelectItem, SelectTrigger,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useFilters } from "@/lib/filters-context"
 
@@ -18,6 +18,7 @@ export function AccountFilter() {
       >
         <Building2 className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate">{accountsLoading ? "Carregando..." : label}</span>
+        <SelectValue className="sr-only" />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all" className="text-xs">Todas as contas</SelectItem>
