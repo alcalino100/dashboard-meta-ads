@@ -4,12 +4,9 @@ import { createContext, useContext, useState, type ReactNode } from "react"
 
 type SessionState = "anonymous" | "authenticated" | "expired"
 
-// Credencial de acesso padrão
-export const DEFAULT_CREDENTIAL = {
-  email: "garciaguilherme27@gmail.com",
-  password: "Guilherme1412@",
-  name: "Guilherme Garcia",
-}
+// ⚠️  As credenciais de acesso são gerenciadas pelo Supabase Auth.
+// NÃO adicione senhas ou emails fixos neste arquivo.
+// Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no .env.local
 
 type AuthCtx = {
   state: SessionState
@@ -25,21 +22,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>("anonymous")
   const [user, setUser] = useState<AuthCtx["user"]>(null)
 
-  const signIn = (email: string, password: string) => {
-    if (
-      email.trim().toLowerCase() !== DEFAULT_CREDENTIAL.email ||
-      password !== DEFAULT_CREDENTIAL.password
-    ) {
-      return false
-    }
-    setUser({ name: DEFAULT_CREDENTIAL.name, email: DEFAULT_CREDENTIAL.email })
-    setState("authenticated")
-    return true
+  // Autenticação real deve ser feita via Supabase Auth (lib/supabase).
+  // Este contexto é mantido apenas para compatibilidade com componentes existentes.
+  const signIn = (_email: string, _password: string) => {
+    // Integração real: use supabase.auth.signInWithPassword() na rota de login.
+    console.warn("signIn stub chamado — implemente integração com Supabase Auth.")
+    return false
   }
+
   const signOut = () => {
     setUser(null)
     setState("anonymous")
   }
+
   const expire = () => setState("expired")
 
   return <Ctx.Provider value={{ state, user, signIn, signOut, expire }}>{children}</Ctx.Provider>
