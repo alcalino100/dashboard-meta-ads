@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useStatus } from "@/lib/use-meta"
+import { useNavigate } from "@/lib/nav-context"
 
 type Priority = "Alta" | "Média" | "Baixa"
 
@@ -116,7 +117,8 @@ function RecList({ recs }: { recs: Rec[] }) {
   )
 }
 
-export function IntelligenceSection({ onGoToIntegrations }: { onGoToIntegrations?: () => void }) {
+export function IntelligenceSection() {
+  const navigate = useNavigate()
   const { data: status, isLoading } = useStatus()
   // Só considera conectado se a API retornou connected: true explicitamente
   const connected = status?.connected === true
@@ -138,7 +140,7 @@ export function IntelligenceSection({ onGoToIntegrations }: { onGoToIntegrations
             </div>
           ) : !connected ? (
             // Sem conta conectada: sempre mostra empty state — NUNCA dados mock
-            <EmptyState onGoToIntegrations={onGoToIntegrations} />
+            <EmptyState onGoToIntegrations={() => navigate("Integrações")} />
           ) : REAL_RECS.length === 0 ? (
             // Conectado mas ainda sem dados processados
             <NoDataYet />
