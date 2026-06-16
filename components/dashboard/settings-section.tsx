@@ -1,16 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Save, Check, PlugZap, RefreshCw } from "lucide-react"
+import { Save, Check } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSettings, saveSettings } from "@/lib/use-store"
-import { useFilters } from "@/lib/filters-context"
-import { useNavigate } from "@/lib/nav-context"
 import { LoadingState } from "./states"
+import { ConnectionsManager } from "./connections-manager"
 
 type Prefs = {
   org_name: string
@@ -50,8 +49,6 @@ function Toggle({ checked, onChange, label, desc }: { checked: boolean; onChange
 
 export function SettingsSection() {
   const { settings, isLoading } = useSettings()
-  const { connected, accounts, statusLoading } = useFilters()
-  const navigate = useNavigate()
   const [form, setForm] = useState<Prefs>(DEFAULTS)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -152,30 +149,7 @@ export function SettingsSection() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Conexão Meta</CardTitle>
-          <CardDescription>Status da integração com a Meta Marketing API</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className={`flex size-9 items-center justify-center rounded-full ${connected ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}>
-              <PlugZap className="size-4" />
-            </span>
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {statusLoading ? "Verificando..." : connected ? "Conectado" : "Sem conexão ativa"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {connected ? `${accounts.length} conta(s) de anúncio acessível(is)` : "Conecte um Business Manager para sincronizar dados"}
-              </p>
-            </div>
-          </div>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("Integrações")}>
-            <RefreshCw className="size-4" /> Gerenciar conexões
-          </Button>
-        </CardContent>
-      </Card>
+      <ConnectionsManager />
     </div>
   )
 }

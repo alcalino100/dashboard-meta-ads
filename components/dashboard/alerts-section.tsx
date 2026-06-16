@@ -1,17 +1,114 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, Trash2, BellRing, Power } from "lucide-react"
+import { useState, useMemo } from "react"
+import { Plus, Trash2, BellRing, Power, ShieldAlert, ShieldCheck } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import { fmtCurrency } from "@/lib/format"
 import { ConnectionGate, LoadingState, ErrorState, DataEmptyState } from "./states"
 import { useNavigate } from "@/lib/nav-context"
 import { useFilters } from "@/lib/filters-context"
-import { useRules, useAudit, createItem, deleteItem, patchItem, type Rule } from "@/lib/use-store"
+import { useCampaigns } from "@/lib/use-meta"
+import { useRules, useAudit, useConnections, createItem, deleteItem, patchItem, type Rule } from "@/lib/use-store"
+
+// Avalia regras ativas contra métricas reais de campanha (spec Seção 2)
+const RULE_METRIC: Record<string, { key: "costPerMsg" | "cpc" | "ctr" | "spend"; unit: "R$" | "%" | "" }> = {
+  cpmsg: { key: "costPerMsg", unit: "R$" },
+  cpc: { key: "cpc", unit: "R$" },
+  ctr: { key: "ctr", unit: "%" },
+  spend: { key: "spend", unit: "R$" },
+}
+
+function fmtVal(v: number, unit: string) {
+  if (unit === "R$") return fmtCurrency(v)
+  if (unit === "%") return `${v.toFixed(2)}%`
+  return String(Math.round(v))
+}
+
+function ComputedAlerts({ rules }: { rules: Rule[] }) {
+  const { range, account, accountName } = useFilters()
+  const { data, isLoading } = useCampaigns(range, account)
+  const campaigns = data?.campaigns ?? []
+
+  const alerts = useMemo(() => {
+    const active = rules.filter((r) => r.active)
+    const out: {
+      id: string; rule: string; campaign: string; account: string
+      metricLabel: string; current: number; threshold: number; unit: string; operator: string
+    }[] = []
+    for (const r of active) {
+      const m = RULE_METRIC[r.metric]
+      if (!m) continue
+      const scoped = campaigns.filter((c) => {
+        if (r.scope === "all") return true
+        // scope guarda o id da conta; comparamos pelo nome resolvido
+        return c.account === accountName(r.scope) || c.account === r.scope
+      })
+      for (const c of scoped) {
+        const current = Number((c as Record<string, number>)[m.key] ?? 0)
+        if (current <= 0) continue
+        const breached = r.operator === ">" ? current > Number(r.threshold) : current < Number(r.threshold)
+        if (breached) {
+          out.push({
+            id: `${r.id}-${c.id}`, rule: r.name, campaign: c.name, account: c.account,
+            metricLabel: METRICS[r.metric] ?? r.metric, current, threshold: Number(r.threshold),
+            unit: m.unit, operator: r.operator,
+          })
+        }
+      }
+    }
+    return out.sort((a, b) => b.current - a.current).slice(0, 20)
+  }, [rules, campaigns, accountName])
+
+  if (isLoading) return <LoadingState label="Avaliando alertas reais..." />
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center gap-2">
+        {alerts.length > 0 ? <ShieldAlert className="size-4 text-warning" /> : <ShieldCheck className="size-4 text-success" />}
+        <div>
+          <CardTitle className="text-base">Alertas ativos</CardTitle>
+          <CardDescription>
+            {alerts.length > 0
+              ? `${alerts.length} disparo(s) com base nas regras ativas e métricas reais do período`
+              : "Nenhuma regra ativa foi disparada pelas métricas reais do período"}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {alerts.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            {rules.some((r) => r.active)
+              ? "Tudo dentro dos limites definidos."
+              : "Crie e ative regras para gerar alertas automáticos a partir dos dados reais."}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {alerts.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-warning/30 bg-warning/5 p-2.5">
+                <ShieldAlert className="size-4 shrink-0 text-warning" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{a.campaign}</p>
+                  <p className="text-xs text-muted-foreground">{a.account} · regra: {a.rule}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold tabular-nums text-warning">{fmtVal(a.current, a.unit)}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {a.metricLabel} {a.operator} {fmtVal(a.threshold, a.unit)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 const METRICS: Record<string, string> = {
   cpmsg: "Custo por mensagem",
@@ -29,16 +126,20 @@ const ACTIONS: Record<string, string> = {
 function RulesInner() {
   const { rules, isLoading, error } = useRules()
   const { logs } = useAudit()
+  const { connections } = useConnections()
   const { accounts } = useFilters()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     metric: "cpmsg", operator: ">", threshold: "6", scope: "all", action: "pause",
   })
 
+  const primaryConn = connections.find((c) => c.uses_env_token) ?? connections[0]
+
   const create = async () => {
     setSaving(true)
     try {
       await createItem("rules", {
+        connection_id: primaryConn?.id ?? null,
         name: `${METRICS[form.metric]} ${form.operator} ${form.threshold}`,
         metric: form.metric,
         operator: form.operator,
