@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { Save, Check } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -65,7 +66,10 @@ export function SettingsSection() {
     try {
       await saveSettings(form as unknown as Record<string, unknown>)
       setSaved(true)
+      toast.success("Configurações salvas")
       setTimeout(() => setSaved(false), 2500)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar configurações")
     } finally {
       setSaving(false)
     }

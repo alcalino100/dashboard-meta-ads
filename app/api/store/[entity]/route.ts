@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
-import { supabaseAdmin } from "@/lib/supabase/admin"
+import { supabaseAdmin, isSupabaseConfigured, SUPABASE_NOT_CONFIGURED } from "@/lib/supabase/admin"
+
+const notConfigured = () => NextResponse.json({ error: SUPABASE_NOT_CONFIGURED }, { status: 503 })
 
 // Whitelist de tabelas e colunas graváveis (segurança)
 const TABLES: Record<string, { table: string; cols: string[]; order?: string }> = {
@@ -41,6 +43,7 @@ async function log(action: string, description: string) {
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ entity: string }> }) {
+  if (!isSupabaseConfigured()) return notConfigured()
   const { entity } = await params
   const cfg = TABLES[entity]
   if (!cfg) return NextResponse.json({ error: "Entidade inválida" }, { status: 400 })
@@ -53,6 +56,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ entity:
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ entity: string }> }) {
+  if (!isSupabaseConfigured()) return notConfigured()
   const { entity } = await params
   const cfg = TABLES[entity]
   if (!cfg || entity === "audit") return NextResponse.json({ error: "Entidade inválida" }, { status: 400 })
@@ -65,6 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ entity:
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ entity: string }> }) {
+  if (!isSupabaseConfigured()) return notConfigured()
   const { entity } = await params
   const cfg = TABLES[entity]
   if (!cfg || entity === "audit") return NextResponse.json({ error: "Entidade inválida" }, { status: 400 })
@@ -79,6 +84,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ entity
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ entity: string }> }) {
+  if (!isSupabaseConfigured()) return notConfigured()
   const { entity } = await params
   const cfg = TABLES[entity]
   if (!cfg || entity === "audit") return NextResponse.json({ error: "Entidade inválida" }, { status: 400 })

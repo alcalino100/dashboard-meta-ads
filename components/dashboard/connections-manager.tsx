@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import {
   Plug, Plus, RefreshCw, Trash2, Pencil, CheckCircle2, AlertTriangle, XCircle, Loader2, Lock,
 } from "lucide-react"
@@ -46,6 +47,7 @@ export function ConnectionsManager() {
   const [formError, setFormError] = useState("")
   const [testingId, setTestingId] = useState<string | null>(null)
   const [toDelete, setToDelete] = useState<Connection | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const openNew = () => {
     setEditing(null)
@@ -88,8 +90,10 @@ export function ConnectionsManager() {
         })
       }
       setDialogOpen(false)
+      toast.success(editing ? "Conexão atualizada" : "Conexão criada")
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Erro ao salvar conexão")
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar conexão")
     } finally {
       setSaving(false)
     }
@@ -98,7 +102,11 @@ export function ConnectionsManager() {
   const runTest = async (c: Connection) => {
     setTestingId(c.id)
     try {
-      await testConnection(c.id)
+      const r = await testConnection(c.id)
+      if (r.status === "connected") toast.success("Conexão verificada com sucesso")
+      else toast.error(r.detail || "A conexão apresentou um problema")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao testar conexão")
     } finally {
       setTestingId(null)
     }
@@ -106,13 +114,19 @@ export function ConnectionsManager() {
 
   const confirmDelete = async () => {
     if (!toDelete) return
+    if (toDelete.uses_env_token) {
+      toast.error("Token de ambiente não pode ser removido")
+      return
+    }
+    setDeleting(true)
     try {
       await deleteItem("connections", toDelete.id)
-    } catch (e) {
-      // erro exibido via toast não disponível; ignora silenciosamente, lista permanece
-      console.log("[v0] delete connection error:", e instanceof Error ? e.message : e)
-    } finally {
+      toast.success("Conexão removida")
       setToDelete(null)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao remover conexão")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -251,9 +265,16 @@ export function ConnectionsManager() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmDelete}>
-              Excluir
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="gap-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault()
+                confirmDelete()
+              }}
+            >
+              {deleting && <Loader2 className="size-4 animate-spin" />} Sim, remover
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

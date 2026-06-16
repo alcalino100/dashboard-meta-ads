@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import { UserPlus, MoreHorizontal, Power, Trash2, Users } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -30,6 +31,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFilters } from "@/lib/filters-context"
 import { useUsers, createItem, patchItem, deleteItem, type AppUser } from "@/lib/use-store"
@@ -66,6 +72,9 @@ export function UsersSection() {
   const [role, setRole] = useState("Operador")
   const [selected, setSelected] = useState<string[]>([])
   const [inviteError, setInviteError] = useState("")
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [toDelete, setToDelete] = useState<AppUser | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const toggleAccount = (id: string) => {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -95,17 +104,41 @@ export function UsersSection() {
       setRole("Operador")
       setSelected([])
       setOpen(false)
+      toast.success("Convite enviado")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao convidar usuário"
+      setInviteError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
   }
 
   const toggleStatus = async (u: AppUser) => {
-    await patchItem("users", { id: u.id, status: u.status === "active" ? "inactive" : "active" })
+    setBusyId(u.id)
+    const next = u.status === "active" ? "inactive" : "active"
+    try {
+      await patchItem("users", { id: u.id, status: next })
+      toast.success(next === "active" ? "Usuário ativado" : "Usuário desativado")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar usuário")
+    } finally {
+      setBusyId(null)
+    }
   }
 
-  const removeUser = async (u: AppUser) => {
-    await deleteItem("users", u.id)
+  const removeUser = async () => {
+    if (!toDelete) return
+    setDeleting(true)
+    try {
+      await deleteItem("users", toDelete.id)
+      toast.success("Acesso removido")
+      setToDelete(null)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao remover usuário")
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -246,10 +279,10 @@ export function UsersSection() {
                           <MoreHorizontal className="size-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => toggleStatus(u)}>
-                            <Power className="size-4" /> {u.status === "active" ? "Desativar" : "Ativar"}
+                          <DropdownMenuItem onClick={() => toggleStatus(u)} disabled={busyId === u.id}>
+                            {busyId === u.id ? <Loader2 className="size-4 animate-spin" /> : <Power className="size-4" />} {u.status === "active" ? "Desativar" : "Ativar"}
                           </DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive" onClick={() => removeUser(u)}>
+                          <DropdownMenuItem variant="destructive" onClick={() => setToDelete(u)}>
                             <Trash2 className="size-4" /> Remover acesso
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -262,6 +295,30 @@ export function UsersSection() {
           </div>
         </Card>
       )}
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{`Remover acesso de ${toDelete?.name}?`}</AlertDialogTitle>
+            <AlertDialogDescription>
+              O usuário perderá o acesso ao painel imediatamente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="gap-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault()
+                removeUser()
+              }}
+            >
+              {deleting && <Loader2 className="size-4 animate-spin" />} Sim, remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

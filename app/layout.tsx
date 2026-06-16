@@ -1,4 +1,5 @@
 import { Analytics } from '@vercel/analytics/next'
+import { Toaster } from 'sonner'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
@@ -52,6 +53,7 @@ export default function RootLayout({
     >
       <body className="font-sans antialiased">
         {children}
+        <Toaster position="bottom-right" richColors duration={4000} />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

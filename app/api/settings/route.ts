@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
-import { supabaseAdmin } from "@/lib/supabase/admin"
+import { supabaseAdmin, isSupabaseConfigured, SUPABASE_NOT_CONFIGURED } from "@/lib/supabase/admin"
+
+const notConfigured = () => NextResponse.json({ error: SUPABASE_NOT_CONFIGURED }, { status: 503 })
 
 export async function GET() {
+  if (!isSupabaseConfigured()) return notConfigured()
   const { data, error } = await supabaseAdmin()
     .from("app_settings")
     .select("payload")
@@ -12,6 +15,7 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  if (!isSupabaseConfigured()) return notConfigured()
   const payload = await req.json()
   const { data, error } = await supabaseAdmin()
     .from("app_settings")
