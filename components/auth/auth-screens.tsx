@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { useAuth, DEFAULT_CREDENTIAL } from "@/lib/auth-context"
+import { useAuth } from "@/lib/auth-context"
 
 type View = "login" | "recover" | "first-access"
 
@@ -66,7 +66,7 @@ function Field({
 export function AuthScreens() {
   const { state, signIn } = useAuth()
   const [view, setView] = useState<View>("login")
-  const [email, setEmail] = useState(DEFAULT_CREDENTIAL.email)
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [error, setError] = useState("")

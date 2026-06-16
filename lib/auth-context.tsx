@@ -1,48 +1,98 @@
 "use client"
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react"
+import { supabaseBrowser } from "@/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
 
-type SessionState = "anonymous" | "authenticated" | "expired"
-
-// Credencial de acesso padrão
-export const DEFAULT_CREDENTIAL = {
-  email: "garciaguilherme27@gmail.com",
-  password: "Guilherme1412@",
-  name: "Guilherme Garcia",
-}
+type SessionState = "anonymous" | "authenticated" | "expired" | "loading"
 
 type AuthCtx = {
   state: SessionState
   user: { name: string; email: string } | null
-  signIn: (email: string, password: string) => boolean
-  signOut: () => void
+  signIn: (email: string, password: string) => Promise<boolean>
+  signOut: () => Promise<void>
   expire: () => void
 }
 
 const Ctx = createContext<AuthCtx | null>(null)
 
+function toUser(u: User | null): AuthCtx["user"] {
+  if (!u) return null
+  return {
+    name:
+      (u.user_metadata?.full_name as string | undefined) ??
+      u.email?.split("@")[0] ??
+      "Usuário",
+    email: u.email ?? "",
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<SessionState>("anonymous")
+  const [state, setState] = useState<SessionState>("loading")
   const [user, setUser] = useState<AuthCtx["user"]>(null)
 
-  const signIn = (email: string, password: string) => {
-    if (
-      email.trim().toLowerCase() !== DEFAULT_CREDENTIAL.email ||
-      password !== DEFAULT_CREDENTIAL.password
-    ) {
+  useEffect(() => {
+    const sb = supabaseBrowser()
+
+    // Restaurar sessão existente
+    sb.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        setUser(toUser(data.session.user))
+        setState("authenticated")
+      } else {
+        setState("anonymous")
+      }
+    })
+
+    // Escutar mudanças de auth (login, logout, refresh)
+    const {
+      data: { subscription },
+    } = sb.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(toUser(session.user))
+        setState("authenticated")
+      } else {
+        setUser(null)
+        setState((prev) => (prev === "authenticated" ? "anonymous" : prev))
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const signIn = async (
+    email: string,
+    password: string
+  ): Promise<boolean> => {
+    const sb = supabaseBrowser()
+    const { error } = await sb.auth.signInWithPassword({ email, password })
+    if (error) {
+      console.error("signIn error:", error.message)
       return false
     }
-    setUser({ name: DEFAULT_CREDENTIAL.name, email: DEFAULT_CREDENTIAL.email })
-    setState("authenticated")
     return true
   }
-  const signOut = () => {
+
+  const signOut = async () => {
+    const sb = supabaseBrowser()
+    await sb.auth.signOut()
     setUser(null)
     setState("anonymous")
   }
+
   const expire = () => setState("expired")
 
-  return <Ctx.Provider value={{ state, user, signIn, signOut, expire }}>{children}</Ctx.Provider>
+  return (
+    <Ctx.Provider value={{ state, user, signIn, signOut, expire }}>
+      {children}
+    </Ctx.Provider>
+  )
 }
 
 export function useAuth() {
