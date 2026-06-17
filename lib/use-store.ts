@@ -23,6 +23,7 @@ export type AppUser = {
   account_ids: string[]
   status: "active" | "inactive"
   last_access: string | null
+  auth_id?: string | null
 }
 
 export type Rule = {
@@ -79,6 +80,42 @@ export function useUsers() {
     revalidateOnFocus: false,
   })
   return { users: data?.items ?? [], error, isLoading }
+}
+
+// Gestão de usuários (somente admin) — usa /api/admin/users com Bearer token.
+const ADMIN_USERS_KEY = "/api/admin/users"
+
+export function useAdminUsers(token: string | null) {
+  const { data, error, isLoading } = useSWR<{ items: AppUser[] }>(
+    token ? [ADMIN_USERS_KEY, token] : null,
+    ([url, t]: [string, string]) =>
+      fetch(url, { headers: { authorization: `Bearer ${t}` } }).then((r) => r.json()),
+    { revalidateOnFocus: false },
+  )
+  return { users: data?.items ?? [], error, isLoading }
+}
+
+async function adminFetch(token: string, method: string, body?: Record<string, unknown>, query = "") {
+  const res = await fetch(`${ADMIN_USERS_KEY}${query}`, {
+    method,
+    headers: { "Content-Type": "application/json", authorization: `Bearer ${token}` },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  await globalMutate((key) => Array.isArray(key) && key[0] === ADMIN_USERS_KEY, undefined, { revalidate: true })
+  await globalMutate("/api/store/audit")
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error ?? "Erro")
+  return json
+}
+
+export function createUser(token: string, body: Record<string, unknown>) {
+  return adminFetch(token, "POST", body)
+}
+export function updateUser(token: string, body: Record<string, unknown>) {
+  return adminFetch(token, "PATCH", body)
+}
+export function deleteUser(token: string, id: string) {
+  return adminFetch(token, "DELETE", undefined, `?id=${id}`)
 }
 
 export function useRules() {

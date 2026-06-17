@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth-context"
 import { navItems, type NavItem } from "@/lib/mock-data"
 
 const icons: Record<NavItem, React.ComponentType<{ className?: string }>> = {
