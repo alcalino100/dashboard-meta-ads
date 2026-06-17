@@ -56,7 +56,9 @@ export type StatusData = {
   appId?: string | null
   permissions?: string[]
   accountCount?: number
+  tokenType?: "system_user" | "user" | "unknown"
   error?: string
+  code?: number | null
 }
 
 export type AccountData = {

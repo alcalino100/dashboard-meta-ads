@@ -1,6 +1,7 @@
 import "server-only"
+import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin"
 
-const API_VERSION = "v21.0"
+const API_VERSION = "v22.0"
 const BASE = `https://graph.facebook.com/${API_VERSION}`
 
 export class MetaApiError extends Error {
@@ -14,7 +15,23 @@ export class MetaApiError extends Error {
   }
 }
 
-function token() {
+export async function token() {
+  // Prioriza o token da conexão ativa no banco; fallback para a env var.
+  if (isSupabaseConfigured()) {
+    try {
+      const { data } = await supabaseAdmin()
+        .from("connections")
+        .select("access_token")
+        .eq("status", "connected")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const dbToken = (data as { access_token?: string } | null)?.access_token
+      if (dbToken) return dbToken
+    } catch {
+      /* cai para env var */
+    }
+  }
   const t = process.env.META_ACCESS_TOKEN
   if (!t) throw new MetaApiError("META_ACCESS_TOKEN não configurado no servidor.", 0, "config")
   return t
@@ -22,12 +39,19 @@ function token() {
 
 async function graph<T = any>(path: string, params: Record<string, string> = {}): Promise<T> {
   const url = new URL(`${BASE}/${path}`)
-  url.searchParams.set("access_token", token())
+  url.searchParams.set("access_token", await token())
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
 
   const res = await fetch(url.toString(), { cache: "no-store" })
   const json = await res.json()
   if (json.error) {
+    if (json.error.code === 190) {
+      throw new MetaApiError(
+        "Token Meta expirado. Acesse as configurações e atualize o META_ACCESS_TOKEN com um System User Token permanente.",
+        190,
+        "token_expired",
+      )
+    }
     throw new MetaApiError(json.error.message, json.error.code, json.error.type)
   }
   return json as T
@@ -174,11 +198,23 @@ export async function getPermissions(): Promise<string[]> {
 }
 
 export async function getAdAccounts(): Promise<MetaAccount[]> {
-  const r = await graph<{ data: any[] }>("me/adaccounts", {
-    fields: "name,account_id,currency,account_status,amount_spent",
-    limit: "100",
-  })
-  return r.data.map((a) => ({
+  const all: any[] = []
+  let after: string | undefined
+  for (let page = 0; page < 10; page++) {
+    const params: Record<string, string> = {
+      fields: "name,account_id,currency,account_status,amount_spent",
+      limit: "100",
+    }
+    if (after) params.after = after
+    const r = await graph<{ data: any[]; paging?: { next?: string; cursors?: { after?: string } } }>(
+      "me/adaccounts",
+      params,
+    )
+    all.push(...(r.data ?? []))
+    if (!r.paging?.next || !r.paging?.cursors?.after) break
+    after = r.paging.cursors.after
+  }
+  return all.map((a) => ({
     id: a.id,
     accountId: a.account_id,
     name: a.name || `Conta ${a.account_id}`,
@@ -283,44 +319,50 @@ export type MetaAdSet = {
 
 export async function getAdSets(actId: string, parentId: string | null, datePreset = "last_30d"): Promise<MetaAdSet[]> {
   const node = parentId ? parentId : actId
-  const [setsRes, insRes] = await Promise.all([
-    graph<{ data: any[] }>(`${node}/adsets`, {
-      fields: "name,campaign_id,status,daily_budget,lifetime_budget,optimization_goal,billing_event,targeting{publisher_platforms},start_time,end_time",
-      limit: "200",
-    }),
-    graph<{ data: any[] }>(`${node}/insights`, applyDate({
-      level: "adset",
-      fields: "adset_id,spend,impressions,clicks,cpc,ctr,actions",
-      limit: "500",
-    }, datePreset)),
-  ])
-  const byId = new Map<string, any>()
-  for (const row of insRes.data ?? []) byId.set(row.adset_id, row)
-  return (setsRes.data ?? []).map((s) => {
-    const ins = byId.get(s.id)
-    const spend = Number(ins?.spend || 0)
-    const messages = messagesFrom(ins?.actions)
-    const platforms = s.targeting?.publisher_platforms as string[] | undefined
-    return {
-      id: s.id,
-      name: s.name,
-      campaignId: s.campaign_id,
-      status: mapStatus(s.status),
-      spend,
-      impressions: Number(ins?.impressions || 0),
-      clicks: Number(ins?.clicks || 0),
-      cpc: Number(ins?.cpc || 0),
-      ctr: Number(ins?.ctr || 0),
-      messages,
-      costPerMsg: messages > 0 ? +(spend / messages).toFixed(2) : 0,
-      budget: Number(s.daily_budget || s.lifetime_budget || 0) / 100,
-      optimization: s.optimization_goal ?? "—",
-      billing: s.billing_event ?? "—",
-      placements: platforms?.length ? platforms.join(", ") : "Automático",
-      start: fmtDate(s.start_time),
-      end: fmtDate(s.end_time),
-    }
-  })
+  try {
+    const [setsRes, insRes] = await Promise.all([
+      graph<{ data: any[] }>(`${node}/adsets`, {
+        fields: "name,campaign_id,status,daily_budget,lifetime_budget,optimization_goal,billing_event,targeting{publisher_platforms},start_time,end_time",
+        limit: "200",
+      }),
+      graph<{ data: any[] }>(`${node}/insights`, applyDate({
+        level: "adset",
+        fields: "adset_id,spend,impressions,clicks,cpc,ctr,actions",
+        limit: "500",
+      }, datePreset)),
+    ])
+    const byId = new Map<string, any>()
+    for (const row of insRes.data ?? []) byId.set(row.adset_id, row)
+    return (setsRes.data ?? []).map((s) => {
+      const ins = byId.get(s.id)
+      const spend = Number(ins?.spend || 0)
+      const messages = messagesFrom(ins?.actions)
+      const platforms = s.targeting?.publisher_platforms as string[] | undefined
+      return {
+        id: s.id,
+        name: s.name,
+        campaignId: s.campaign_id,
+        status: mapStatus(s.status),
+        spend,
+        impressions: Number(ins?.impressions || 0),
+        clicks: Number(ins?.clicks || 0),
+        cpc: Number(ins?.cpc || 0),
+        ctr: Number(ins?.ctr || 0),
+        messages,
+        costPerMsg: messages > 0 ? +(spend / messages).toFixed(2) : 0,
+        budget: Number(s.daily_budget || s.lifetime_budget || 0) / 100,
+        optimization: s.optimization_goal ?? "—",
+        billing: s.billing_event ?? "—",
+        placements: platforms?.length ? platforms.join(", ") : "Automático",
+        start: fmtDate(s.start_time),
+        end: fmtDate(s.end_time),
+      }
+    })
+  } catch (e) {
+    const err = e as MetaApiError
+    if (err.code === 403 || err.code === 100) return []
+    throw e
+  }
 }
 
 // ── Anúncios (Ads) ──────────────────────────────────────────
@@ -344,39 +386,45 @@ export type MetaAd = {
 
 export async function getAds(actId: string, parentId: string | null, datePreset = "last_30d"): Promise<MetaAd[]> {
   const node = parentId ? parentId : actId
-  const [adsRes, insRes] = await Promise.all([
-    graph<{ data: any[] }>(`${node}/ads`, {
-      fields: "name,adset_id,campaign_id,status,creative{thumbnail_url,title,body}",
-      limit: "200",
-    }),
-    graph<{ data: any[] }>(`${node}/insights`, applyDate({
-      level: "ad",
-      fields: "ad_id,spend,impressions,clicks,cpc,ctr,actions",
-      limit: "500",
-    }, datePreset)),
-  ])
-  const byId = new Map<string, any>()
-  for (const row of insRes.data ?? []) byId.set(row.ad_id, row)
-  return (adsRes.data ?? []).map((a) => {
-    const ins = byId.get(a.id)
-    const spend = Number(ins?.spend || 0)
-    const messages = messagesFrom(ins?.actions)
-    return {
-      id: a.id,
-      name: a.name,
-      adsetId: a.adset_id,
-      campaignId: a.campaign_id,
-      status: mapStatus(a.status),
-      spend,
-      impressions: Number(ins?.impressions || 0),
-      clicks: Number(ins?.clicks || 0),
-      cpc: Number(ins?.cpc || 0),
-      ctr: Number(ins?.ctr || 0),
-      messages,
-      costPerMsg: messages > 0 ? +(spend / messages).toFixed(2) : 0,
-      thumbnail: a.creative?.thumbnail_url ?? null,
-      title: a.creative?.title ?? a.name,
-      body: a.creative?.body ?? "—",
-    }
-  })
+  try {
+    const [adsRes, insRes] = await Promise.all([
+      graph<{ data: any[] }>(`${node}/ads`, {
+        fields: "name,adset_id,campaign_id,status,creative{thumbnail_url,title,body}",
+        limit: "200",
+      }),
+      graph<{ data: any[] }>(`${node}/insights`, applyDate({
+        level: "ad",
+        fields: "ad_id,spend,impressions,clicks,cpc,ctr,actions",
+        limit: "500",
+      }, datePreset)),
+    ])
+    const byId = new Map<string, any>()
+    for (const row of insRes.data ?? []) byId.set(row.ad_id, row)
+    return (adsRes.data ?? []).map((a) => {
+      const ins = byId.get(a.id)
+      const spend = Number(ins?.spend || 0)
+      const messages = messagesFrom(ins?.actions)
+      return {
+        id: a.id,
+        name: a.name,
+        adsetId: a.adset_id,
+        campaignId: a.campaign_id,
+        status: mapStatus(a.status),
+        spend,
+        impressions: Number(ins?.impressions || 0),
+        clicks: Number(ins?.clicks || 0),
+        cpc: Number(ins?.cpc || 0),
+        ctr: Number(ins?.ctr || 0),
+        messages,
+        costPerMsg: messages > 0 ? +(spend / messages).toFixed(2) : 0,
+        thumbnail: a.creative?.thumbnail_url ?? null,
+        title: a.creative?.title ?? a.name,
+        body: a.creative?.body ?? "—",
+      }
+    })
+  } catch (e) {
+    const err = e as MetaApiError
+    if (err.code === 403 || err.code === 100) return []
+    throw e
+  }
 }
