@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getMe, getPermissions, getAdAccounts, MetaApiError } from "@/lib/meta-api"
+import { getMe, getPermissions, getAdAccounts, token, MetaApiError } from "@/lib/meta-api"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -9,8 +9,13 @@ type TokenType = "system_user" | "user" | "unknown"
 async function detectTokenType(): Promise<TokenType> {
   const appId = process.env.META_APP_ID
   const appSecret = process.env.META_APP_SECRET
-  const accessToken = process.env.META_ACCESS_TOKEN
-  if (!appId || !appSecret || !accessToken) return "unknown"
+  if (!appId || !appSecret) return "unknown"
+  let accessToken: string
+  try {
+    accessToken = await token()
+  } catch {
+    return "unknown"
+  }
   try {
     const url = new URL("https://graph.facebook.com/v22.0/debug_token")
     url.searchParams.set("input_token", accessToken)

@@ -1,4 +1,5 @@
 import "server-only"
+import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin"
 
 const API_VERSION = "v22.0"
 const BASE = `https://graph.facebook.com/${API_VERSION}`
@@ -14,7 +15,23 @@ export class MetaApiError extends Error {
   }
 }
 
-function token() {
+export async function token() {
+  // Prioriza o token da conexão ativa no banco; fallback para a env var.
+  if (isSupabaseConfigured()) {
+    try {
+      const { data } = await supabaseAdmin()
+        .from("connections")
+        .select("access_token")
+        .eq("status", "connected")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const dbToken = (data as { access_token?: string } | null)?.access_token
+      if (dbToken) return dbToken
+    } catch {
+      /* cai para env var */
+    }
+  }
   const t = process.env.META_ACCESS_TOKEN
   if (!t) throw new MetaApiError("META_ACCESS_TOKEN não configurado no servidor.", 0, "config")
   return t
@@ -22,7 +39,7 @@ function token() {
 
 async function graph<T = any>(path: string, params: Record<string, string> = {}): Promise<T> {
   const url = new URL(`${BASE}/${path}`)
-  url.searchParams.set("access_token", token())
+  url.searchParams.set("access_token", await token())
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
 
   const res = await fetch(url.toString(), { cache: "no-store" })
