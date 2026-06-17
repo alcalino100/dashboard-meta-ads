@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin, isSupabaseConfigured, SUPABASE_NOT_CONFIGURED } from "@/lib/supabase/admin"
+import { getRequester, canWrite, type AuthedUser } from "@/lib/admin-guard"
 
 const notConfigured = () => NextResponse.json({ error: SUPABASE_NOT_CONFIGURED }, { status: 503 })
+const forbidden = () =>
+  NextResponse.json({ error: "Seu nível de acesso não permite esta ação." }, { status: 403 })
 
 // Whitelist de tabelas e colunas graváveis (segurança)
 const TABLES: Record<string, { table: string; cols: string[]; order?: string }> = {
@@ -34,9 +37,9 @@ function pick(body: Record<string, unknown>, cols: string[]) {
   return out
 }
 
-async function log(action: string, description: string) {
+async function log(actor: string, action: string, description: string) {
   try {
-    await supabaseAdmin().from("audit_logs").insert({ actor: "Você", action, description })
+    await supabaseAdmin().from("audit_logs").insert({ actor, action, description })
   } catch {
     /* não bloqueia a operação principal */
   }
@@ -57,6 +60,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ entity:
 
 export async function POST(req: Request, { params }: { params: Promise<{ entity: string }> }) {
   if (!isSupabaseConfigured()) return notConfigured()
+  const requester = await getRequester(req)
+  if (!canWrite(requester)) return forbidden()
   const { entity } = await params
   const cfg = TABLES[entity]
   if (!cfg || entity === "audit") return NextResponse.json({ error: "Entidade inválida" }, { status: 400 })
@@ -64,12 +69,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ entity:
   const row = pick(body, cfg.cols)
   const { data, error } = await supabaseAdmin().from(cfg.table).insert(row).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  await log("create", `Criou ${entity} "${(row.name ?? row.account_name ?? row.email ?? "") as string}"`)
+  await log((requester as AuthedUser).email, "create", `Criou ${entity} "${(row.name ?? row.account_name ?? row.email ?? "") as string}"`)
   return NextResponse.json({ item: data })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ entity: string }> }) {
   if (!isSupabaseConfigured()) return notConfigured()
+  const requester = await getRequester(req)
+  if (!canWrite(requester)) return forbidden()
   const { entity } = await params
   const cfg = TABLES[entity]
   if (!cfg || entity === "audit") return NextResponse.json({ error: "Entidade inválida" }, { status: 400 })
@@ -79,12 +86,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ entity
   const row = pick(body, cfg.cols)
   const { data, error } = await supabaseAdmin().from(cfg.table).update(row).eq("id", id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  await log("update", `Atualizou ${entity} ${id}`)
+  await log((requester as AuthedUser).email, "update", `Atualizou ${entity} ${id}`)
   return NextResponse.json({ item: data })
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ entity: string }> }) {
   if (!isSupabaseConfigured()) return notConfigured()
+  const requester = await getRequester(req)
+  if (!canWrite(requester)) return forbidden()
   const { entity } = await params
   const cfg = TABLES[entity]
   if (!cfg || entity === "audit") return NextResponse.json({ error: "Entidade inválida" }, { status: 400 })
@@ -106,6 +115,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ entit
   }
   const { error } = await supabaseAdmin().from(cfg.table).delete().eq("id", id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  await log("delete", `Removeu ${entity} ${id}`)
+  await log((requester as AuthedUser).email, "delete", `Removeu ${entity} ${id}`)
   return NextResponse.json({ ok: true })
 }

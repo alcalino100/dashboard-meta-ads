@@ -37,3 +37,10 @@ export async function getRequester(req: Request): Promise<AuthedUser | null> {
 export function isAdmin(user: AuthedUser | null): boolean {
   return user?.role === "Administrador"
 }
+
+// Papéis com permissão de escrita (criar/editar/excluir dados do painel).
+const WRITE_ROLES = new Set(["Administrador", "Gestor", "Operador"])
+
+export function canWrite(user: AuthedUser | null): boolean {
+  return !!user && WRITE_ROLES.has(user.role)
+}

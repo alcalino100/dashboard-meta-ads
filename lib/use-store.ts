@@ -1,8 +1,24 @@
 "use client"
 
 import useSWR, { mutate as globalMutate } from "swr"
+import { supabaseBrowser } from "@/lib/supabase/client"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+// Cabeçalhos autenticados: anexa o access token da sessão Supabase (para o
+// servidor validar o papel/permissão de escrita do usuário).
+async function authHeaders(json = true): Promise<Record<string, string>> {
+  const h: Record<string, string> = {}
+  if (json) h["Content-Type"] = "application/json"
+  try {
+    const { data } = await supabaseBrowser().auth.getSession()
+    const token = data.session?.access_token
+    if (token) h.authorization = `Bearer ${token}`
+  } catch {
+    /* sem sessão */
+  }
+  return h
+}
 
 export type Goal = {
   id: string
@@ -163,7 +179,7 @@ export function useSettings() {
 export async function createItem(entity: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/store/${entity}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify(body),
   })
   await globalMutate(`/api/store/${entity}`)
@@ -173,7 +189,7 @@ export async function createItem(entity: string, body: Record<string, unknown>) 
 }
 
 export async function deleteItem(entity: string, id: string) {
-  const res = await fetch(`/api/store/${entity}?id=${id}`, { method: "DELETE" })
+  const res = await fetch(`/api/store/${entity}?id=${id}`, { method: "DELETE", headers: await authHeaders(false) })
   await globalMutate(`/api/store/${entity}`)
   await globalMutate("/api/store/audit")
   if (!res.ok) throw new Error((await res.json()).error ?? "Erro")
@@ -183,7 +199,7 @@ export async function deleteItem(entity: string, id: string) {
 export async function patchItem(entity: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/store/${entity}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify(body),
   })
   await globalMutate(`/api/store/${entity}`)
@@ -195,7 +211,7 @@ export async function patchItem(entity: string, body: Record<string, unknown>) {
 export async function saveSettings(payload: Record<string, unknown>) {
   const res = await fetch("/api/settings", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify(payload),
   })
   await globalMutate("/api/settings")

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin, isSupabaseConfigured, SUPABASE_NOT_CONFIGURED } from "@/lib/supabase/admin"
+import { getRequester, canWrite } from "@/lib/admin-guard"
 
 const notConfigured = () => NextResponse.json({ error: SUPABASE_NOT_CONFIGURED }, { status: 503 })
 
@@ -16,6 +17,8 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   if (!isSupabaseConfigured()) return notConfigured()
+  const requester = await getRequester(req)
+  if (!canWrite(requester)) return NextResponse.json({ error: "Seu nível de acesso não permite esta ação." }, { status: 403 })
   const payload = await req.json()
   const { data, error } = await supabaseAdmin()
     .from("app_settings")
@@ -25,6 +28,6 @@ export async function PUT(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   await supabaseAdmin()
     .from("audit_logs")
-    .insert({ actor: "Você", action: "settings", description: "Atualizou as configurações do painel" })
+    .insert({ actor: requester!.email, action: "settings", description: "Atualizou as configurações do painel" })
   return NextResponse.json({ settings: data.payload })
 }
