@@ -1,8 +1,24 @@
 "use client"
 
 import useSWR, { mutate as globalMutate } from "swr"
+import { supabaseBrowser } from "@/lib/supabase/client"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+// Cabeçalhos autenticados: anexa o access token da sessão Supabase (para o
+// servidor validar o papel/permissão de escrita do usuário).
+async function authHeaders(json = true): Promise<Record<string, string>> {
+  const h: Record<string, string> = {}
+  if (json) h["Content-Type"] = "application/json"
+  try {
+    const { data } = await supabaseBrowser().auth.getSession()
+    const token = data.session?.access_token
+    if (token) h.authorization = `Bearer ${token}`
+  } catch {
+    /* sem sessão */
+  }
+  return h
+}
 
 export type Goal = {
   id: string
@@ -23,6 +39,7 @@ export type AppUser = {
   account_ids: string[]
   status: "active" | "inactive"
   last_access: string | null
+  auth_id?: string | null
 }
 
 export type Rule = {
@@ -81,6 +98,42 @@ export function useUsers() {
   return { users: data?.items ?? [], error, isLoading }
 }
 
+// Gestão de usuários (somente admin) — usa /api/admin/users com Bearer token.
+const ADMIN_USERS_KEY = "/api/admin/users"
+
+export function useAdminUsers(token: string | null) {
+  const { data, error, isLoading } = useSWR<{ items: AppUser[] }>(
+    token ? [ADMIN_USERS_KEY, token] : null,
+    ([url, t]: [string, string]) =>
+      fetch(url, { headers: { authorization: `Bearer ${t}` } }).then((r) => r.json()),
+    { revalidateOnFocus: false },
+  )
+  return { users: data?.items ?? [], error, isLoading }
+}
+
+async function adminFetch(token: string, method: string, body?: Record<string, unknown>, query = "") {
+  const res = await fetch(`${ADMIN_USERS_KEY}${query}`, {
+    method,
+    headers: { "Content-Type": "application/json", authorization: `Bearer ${token}` },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  await globalMutate((key) => Array.isArray(key) && key[0] === ADMIN_USERS_KEY, undefined, { revalidate: true })
+  await globalMutate("/api/store/audit")
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error ?? "Erro")
+  return json
+}
+
+export function createUser(token: string, body: Record<string, unknown>) {
+  return adminFetch(token, "POST", body)
+}
+export function updateUser(token: string, body: Record<string, unknown>) {
+  return adminFetch(token, "PATCH", body)
+}
+export function deleteUser(token: string, id: string) {
+  return adminFetch(token, "DELETE", undefined, `?id=${id}`)
+}
+
 export function useRules() {
   const { data, error, isLoading } = useSWR<{ items: Rule[] }>("/api/store/rules", fetcher, {
     revalidateOnFocus: false,
@@ -126,7 +179,7 @@ export function useSettings() {
 export async function createItem(entity: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/store/${entity}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify(body),
   })
   await globalMutate(`/api/store/${entity}`)
@@ -136,7 +189,7 @@ export async function createItem(entity: string, body: Record<string, unknown>) 
 }
 
 export async function deleteItem(entity: string, id: string) {
-  const res = await fetch(`/api/store/${entity}?id=${id}`, { method: "DELETE" })
+  const res = await fetch(`/api/store/${entity}?id=${id}`, { method: "DELETE", headers: await authHeaders(false) })
   await globalMutate(`/api/store/${entity}`)
   await globalMutate("/api/store/audit")
   if (!res.ok) throw new Error((await res.json()).error ?? "Erro")
@@ -146,7 +199,7 @@ export async function deleteItem(entity: string, id: string) {
 export async function patchItem(entity: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/store/${entity}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify(body),
   })
   await globalMutate(`/api/store/${entity}`)
@@ -158,7 +211,7 @@ export async function patchItem(entity: string, body: Record<string, unknown>) {
 export async function saveSettings(payload: Record<string, unknown>) {
   const res = await fetch("/api/settings", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeaders(),
     body: JSON.stringify(payload),
   })
   await globalMutate("/api/settings")

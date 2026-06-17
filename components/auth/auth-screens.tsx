@@ -1,14 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, Mail, Lock, ArrowLeft, ShieldCheck, Eye, EyeOff, CheckCircle2 } from "lucide-react"
+import { Sparkles, Mail, Lock, ArrowLeft, ShieldCheck, Eye, EyeOff, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 
-type View = "login" | "recover" | "first-access"
+type View = "login" | "recover"
 
 function Field({
   id,
@@ -68,34 +68,20 @@ export function AuthScreens() {
   const [view, setView] = useState<View>("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [confirm, setConfirm] = useState("")
   const [error, setError] = useState("")
-  const [sent, setSent] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const expired = state === "expired"
 
-  const submitLogin = (e: React.FormEvent) => {
+  const submitLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.includes("@")) return setError("E-mail inválido.")
     if (password.length < 6) return setError("Senha deve ter ao menos 6 caracteres.")
     setError("")
-    const ok = signIn(email, password)
+    setSubmitting(true)
+    const ok = await signIn(email, password)
+    setSubmitting(false)
     if (!ok) setError("E-mail ou senha incorretos.")
-  }
-
-  const submitRecover = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email.includes("@")) return setError("Informe um e-mail válido.")
-    setError("")
-    setSent(true)
-  }
-
-  const submitFirst = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (password.length < 8) return setError("A senha deve ter ao menos 8 caracteres.")
-    if (password !== confirm) return setError("As senhas não coincidem.")
-    setError("")
-    signIn(email, password)
   }
 
   return (
@@ -130,10 +116,12 @@ export function AuthScreens() {
               <Field id="email" label="E-mail" type="email" value={email} onChange={setEmail} placeholder="nome@empresa.com" icon={Mail} />
               <Field id="password" label="Senha" value={password} onChange={setPassword} placeholder="••••••••" icon={Lock} toggle />
               {error && <p className="text-xs text-destructive">{error}</p>}
-              <Button type="submit" className="w-full">Entrar</Button>
+              <Button type="submit" className="w-full gap-1.5" disabled={submitting}>
+                {submitting && <Loader2 className="size-4 animate-spin" />} Entrar
+              </Button>
               <button
                 type="button"
-                onClick={() => { setView("recover"); setError(""); setSent(false) }}
+                onClick={() => { setView("recover"); setError("") }}
                 className="text-center text-xs text-muted-foreground hover:text-foreground"
               >
                 Esqueceu a senha?
@@ -142,52 +130,28 @@ export function AuthScreens() {
           )}
 
           {view === "recover" && (
-            <form onSubmit={submitRecover} className="flex flex-col gap-4">
-              <button type="button" onClick={() => { setView("login"); setError(""); setSent(false) }} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="size-3.5" /> Voltar
-              </button>
-              <div>
-                <h2 className="text-base font-semibold text-foreground">Recuperar senha</h2>
-                <p className="text-sm text-muted-foreground">Enviaremos um link de redefinição</p>
-              </div>
-              {sent ? (
-                <div className="flex items-start gap-2 rounded-md border border-success/20 bg-success/10 p-3">
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
-                  <p className="text-xs text-foreground">Link enviado para <span className="font-medium">{email}</span>. Verifique sua caixa de entrada.</p>
-                </div>
-              ) : (
-                <>
-                  <Field id="recover-email" label="E-mail" type="email" value={email} onChange={setEmail} placeholder="nome@empresa.com" icon={Mail} error={error} />
-                  <Button type="submit" className="w-full">Enviar link</Button>
-                </>
-              )}
-            </form>
-          )}
-
-          {view === "first-access" && (
-            <form onSubmit={submitFirst} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4">
               <button type="button" onClick={() => { setView("login"); setError("") }} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="size-3.5" /> Voltar
               </button>
               <div>
-                <h2 className="text-base font-semibold text-foreground">Primeiro acesso</h2>
-                <p className="text-sm text-muted-foreground">Defina sua senha para ativar a conta</p>
+                <h2 className="text-base font-semibold text-foreground">Esqueceu a senha?</h2>
+                <p className="text-sm text-muted-foreground">Sua senha é definida pelo administrador</p>
               </div>
-              <Field id="new-pass" label="Nova senha" value={password} onChange={setPassword} placeholder="Mínimo 8 caracteres" icon={Lock} toggle />
-              <Field id="confirm-pass" label="Confirmar senha" value={confirm} onChange={setConfirm} placeholder="Repita a senha" icon={Lock} toggle error={error} />
-              <Button type="submit" className="w-full">Ativar conta</Button>
-            </form>
+              <div className="flex items-start gap-2 rounded-md border border-border bg-secondary/50 p-3">
+                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <p className="text-xs text-foreground">
+                  Peça ao administrador da conta para gerar uma nova senha para você em{" "}
+                  <span className="font-medium">Usuários</span>. Ele poderá definir uma senha
+                  temporária e repassá-la com segurança.
+                </p>
+              </div>
+              <Button type="button" variant="outline" className="w-full" onClick={() => { setView("login"); setError("") }}>
+                Voltar ao login
+              </Button>
+            </div>
           )}
         </div>
-
-        {view === "login" && (
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            Recebeu um convite?{" "}
-            <button onClick={() => { setView("first-access"); setError(""); setPassword(""); setConfirm("") }} className="font-medium text-primary hover:underline">
-              Definir senha de primeiro acesso
-            </button>
-          </p>
-        )}
       </div>
     </main>
   )

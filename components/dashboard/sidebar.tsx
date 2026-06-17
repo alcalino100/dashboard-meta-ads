@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth-context"
 import { navItems, type NavItem } from "@/lib/mock-data"
 
 const icons: Record<NavItem, React.ComponentType<{ className?: string }>> = {
@@ -40,6 +41,8 @@ export function SidebarNav({
   onSelect: (item: NavItem) => void
   collapsed?: boolean
 }) {
+  const { isAdmin } = useAuth()
+  const visible = order.filter((item) => item !== "Usuários" || isAdmin)
   return (
     <nav
       aria-label="Navegação principal"
@@ -57,7 +60,7 @@ export function SidebarNav({
         )}
       </div>
 
-      {order.map((item) => {
+      {visible.map((item) => {
         const Icon = icons[item]
         const isActive = item === active
         return (
