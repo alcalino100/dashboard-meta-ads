@@ -265,7 +265,7 @@ export function UsersSection() {
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-sm">Nível de acesso</Label>
-                <Select value={form.role} onValueChange={(v) => set({ role: v })}>
+                <Select value={form.role ?? "Operador"} onValueChange={(v) => set({ role: v ?? "Operador" })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
