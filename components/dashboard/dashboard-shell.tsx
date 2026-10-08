@@ -8,6 +8,7 @@ import { SetupBanner } from "./setup-banner"
 import { MetaStatusBanner } from "./meta-status-banner"
 import { OverviewSection } from "./overview-section"
 import { HierarchySection } from "./hierarchy-section"
+import { CreativesSection } from "./creatives-section"
 import { UsersSection } from "./users-section"
 import { AlertsSection } from "./alerts-section"
 import { AuditSection } from "./audit-section"
@@ -33,6 +34,8 @@ export function DashboardShell() {
         return <OverviewSection />
       case "Campanhas":
         return <HierarchySection />
+      case "Criativos":
+        return <CreativesSection />
       case "Integrações":
         return <IntegrationsSection />
       case "Alertas":

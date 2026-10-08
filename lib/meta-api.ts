@@ -370,7 +370,9 @@ export type MetaAd = {
   id: string
   name: string
   adsetId: string
+  adsetName?: string
   campaignId: string
+  campaignName?: string
   status: Status
   spend: number
   impressions: number
@@ -400,6 +402,19 @@ export async function getAds(actId: string, parentId: string | null, datePreset 
     ])
     const byId = new Map<string, any>()
     for (const row of insRes.data ?? []) byId.set(row.ad_id, row)
+    // Nomes de campanha/conjunto para o ranking de criativos
+    let campNames = new Map<string, string>()
+    let setNames = new Map<string, string>()
+    try {
+      const [c, s] = await Promise.all([
+        graph<{ data: any[] }>(`${actId}/campaigns`, { fields: "id,name", limit: "500" }),
+        graph<{ data: any[] }>(`${actId}/adsets`, { fields: "id,name", limit: "500" }),
+      ])
+      campNames = new Map((c.data ?? []).map((x) => [String(x.id), x.name]))
+      setNames = new Map((s.data ?? []).map((x) => [String(x.id), x.name]))
+    } catch {
+      /* nomes opcionais — segue sem eles */
+    }
     return (adsRes.data ?? []).map((a) => {
       const ins = byId.get(a.id)
       const spend = Number(ins?.spend || 0)
@@ -408,7 +423,9 @@ export async function getAds(actId: string, parentId: string | null, datePreset 
         id: a.id,
         name: a.name,
         adsetId: a.adset_id,
+        adsetName: setNames.get(String(a.adset_id)) ?? a.adset_id,
         campaignId: a.campaign_id,
+        campaignName: campNames.get(String(a.campaign_id)) ?? a.campaign_id,
         status: mapStatus(a.status),
         spend,
         impressions: Number(ins?.impressions || 0),

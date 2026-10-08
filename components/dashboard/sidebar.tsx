@@ -3,6 +3,7 @@
 import {
   LayoutDashboard,
   Megaphone,
+  ImageIcon,
   Plug,
   GitBranch,
   Bell,
@@ -20,6 +21,7 @@ import { navItems, type NavItem } from "@/lib/mock-data"
 const icons: Record<NavItem, React.ComponentType<{ className?: string }>> = {
   Overview: LayoutDashboard,
   Campanhas: Megaphone,
+  Criativos: ImageIcon,
   Integrações: Plug,
   Regras: GitBranch,
   Alertas: Bell,

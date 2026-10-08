@@ -36,7 +36,9 @@ export type AdRow = {
   id: string
   name: string
   adsetId: string
+  adsetName?: string
   campaignId: string
+  campaignName?: string
   status: "active" | "paused" | "ended" | "review"
   spend: number
   impressions: number
@@ -49,6 +51,8 @@ export type AdRow = {
   title: string
   body: string
 }
+
+export type CreativeRow = AdRow
 
 export type StatusData = {
   connected: boolean
@@ -148,4 +152,13 @@ export function useAds(range: Range, account?: string, adset?: string, enabled =
     ? `/api/meta/ads?range=${range}${acctParam(account)}${adset ? `&adset=${adset}` : ""}`
     : null
   return useSWR<{ ads: AdRow[] }>(key, fetcher, { revalidateOnFocus: false })
+}
+
+export type CreativeSort = "messages" | "spend" | "costPerMsg" | "ctr"
+
+export function useCreatives(range: Range, account?: string, sort: CreativeSort = "messages", limit = 24) {
+  const key = `/api/meta/creatives?range=${range}${acctParam(account)}&sort=${sort}&limit=${limit}`
+  return useSWR<{ creatives: CreativeRow[]; accountId?: string }>(key, fetcher, {
+    revalidateOnFocus: false,
+  })
 }
