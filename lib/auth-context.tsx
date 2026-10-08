@@ -8,7 +8,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react"
-import { supabaseBrowser } from "@/lib/supabase/client"
+import { supabaseBrowser, isSupabaseBrowserConfigured } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
 
 type SessionState = "anonymous" | "authenticated" | "expired" | "loading"
@@ -54,9 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role | null>(null)
 
   const getToken = useCallback(async () => {
-    const sb = supabaseBrowser()
-    const { data } = await sb.auth.getSession()
-    return data.session?.access_token ?? null
+    try {
+      const sb = supabaseBrowser()
+      const { data } = await sb.auth.getSession()
+      return data.session?.access_token ?? null
+    } catch {
+      return null
+    }
   }, [])
 
   // Busca o papel real do usuário (app_users) após autenticar
@@ -73,9 +77,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [getToken])
 
   useEffect(() => {
+    // Sem Supabase configurado: cai direto em "anonymous" (tela de login +
+    // SetupBanner orienta a configuração) em vez de quebrar a página.
+    if (!isSupabaseBrowserConfigured()) {
+      setState("anonymous")
+      return
+    }
+    let cancelled = false
     const sb = supabaseBrowser()
 
     sb.auth.getSession().then(({ data }) => {
+      if (cancelled) return
       if (data.session?.user) {
         setUser(toUser(data.session.user))
         setState("authenticated")
@@ -83,6 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setState("anonymous")
       }
+    }).catch(() => {
+      if (!cancelled) setState("anonymous")
     })
 
     const {
@@ -99,10 +113,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
   }, [fetchRole])
 
   const signIn = async (email: string, password: string): Promise<boolean> => {
+    if (!isSupabaseBrowserConfigured()) {
+      console.error("signIn: Supabase não configurado (vars ausentes).")
+      return false
+    }
     const sb = supabaseBrowser()
     const { error } = await sb.auth.signInWithPassword({ email, password })
     if (error) {
@@ -113,8 +134,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
-    const sb = supabaseBrowser()
-    await sb.auth.signOut()
+    try {
+      const sb = supabaseBrowser()
+      await sb.auth.signOut()
+    } catch {
+      /* stub ou sessão inexistente */
+    }
     setUser(null)
     setRole(null)
     setState("anonymous")
