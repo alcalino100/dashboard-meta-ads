@@ -1,8 +1,8 @@
-# ────────────────────────────────────────────────────────────
-# Dashboard Meta Ads — schema inicial do Supabase
-# Como aplicar: Supabase Dashboard > SQL Editor > New query >
-# cole este arquivo e clique em Run (uma única vez).
-# ────────────────────────────────────────────────────────────
+-- ────────────────────────────────────────────────────────────
+-- Dashboard Meta Ads — schema inicial do Supabase
+-- Como aplicar: Supabase Dashboard > SQL Editor > New query >
+-- cole este arquivo e clique em Run (uma única vez).
+-- ────────────────────────────────────────────────────────────
 
 -- Conexões Meta (Business Managers + tokens)
 create table if not exists public.connections (
@@ -87,11 +87,11 @@ alter table public.rules enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.app_settings enable row level security;
 
-# ────────────────────────────────────────────────────────────
-# DEPOIS do schema: criar o primeiro login
-# 1) Authentication > Users > Add user > email + senha
-# 2) Copie o UUID do usuário e rode:
-#
-#    insert into public.app_users (name, email, role, status, auth_id)
-#    values ('Seu Nome', 'voce@empresa.com', 'Administrador', 'active', '<UUID>');
-# ────────────────────────────────────────────────────────────
+-- ────────────────────────────────────────────────────────────
+-- DEPOIS do schema: criar o primeiro login
+-- 1) Authentication > Users > Add user > email + senha
+-- 2) Copie o UUID do usuário e rode:
+--
+--    insert into public.app_users (name, email, role, status, auth_id)
+--    values ('Seu Nome', 'voce@empresa.com', 'Administrador', 'active', '<UUID>');
+-- ────────────────────────────────────────────────────────────
