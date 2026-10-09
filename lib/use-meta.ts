@@ -9,6 +9,9 @@ const fetcher = async (url: string) => {
   return json
 }
 
+// Dados 100% ao vivo da Meta API — revalida sozinho a cada 90s em todas as telas.
+const LIVE = { revalidateOnFocus: false, refreshInterval: 90_000 } as const
+
 // Presets no padrão Meta Ads Manager (+ custom:YYYY-MM-DD:YYYY-MM-DD)
 export type Range = string
 
@@ -87,11 +90,15 @@ export type Totals = {
   costPerMsg: number
 }
 
+export type ClientRef = { id: string; name: string } | null
+
 export type OverviewData = {
   totals: Totals
   accountShare: { name: string; gasto: number; mensagens: number }[]
   trend: { date: string; gasto: number; cliques: number; mensagens: number; custoMsg: number }[]
   accountsConsidered: number
+  client?: ClientRef
+  fetchedAt?: string
 }
 
 export type CampaignRow = {
@@ -114,11 +121,15 @@ export type CampaignRow = {
 }
 
 export function useStatus() {
-  return useSWR<StatusData>("/api/meta/status", fetcher, { revalidateOnFocus: false })
+  return useSWR<StatusData>("/api/meta/status", fetcher, { revalidateOnFocus: false, refreshInterval: 120_000 })
 }
 
 export function useAccounts() {
-  return useSWR<{ accounts: AccountData[] }>("/api/meta/accounts", fetcher, { revalidateOnFocus: false })
+  return useSWR<{ accounts: AccountData[]; client?: ClientRef; connectionId?: string }>(
+    "/api/meta/accounts",
+    fetcher,
+    LIVE,
+  )
 }
 
 function acctParam(account?: string) {
@@ -126,9 +137,7 @@ function acctParam(account?: string) {
 }
 
 export function useOverview(range: Range, account?: string) {
-  return useSWR<OverviewData>(`/api/meta/overview?range=${range}${acctParam(account)}`, fetcher, {
-    revalidateOnFocus: false,
-  })
+  return useSWR<OverviewData>(`/api/meta/overview?range=${range}${acctParam(account)}`, fetcher, LIVE)
 }
 
 export function useCampaigns(range: Range, account?: string) {
@@ -136,7 +145,7 @@ export function useCampaigns(range: Range, account?: string) {
   return useSWR<{ campaigns: CampaignRow[]; accounts: { id: string; name: string }[]; accountId?: string }>(
     key,
     fetcher,
-    { revalidateOnFocus: false },
+    LIVE,
   )
 }
 
@@ -144,21 +153,19 @@ export function useAdSets(range: Range, account?: string, campaign?: string, ena
   const key = enabled
     ? `/api/meta/adsets?range=${range}${acctParam(account)}${campaign ? `&campaign=${campaign}` : ""}`
     : null
-  return useSWR<{ adsets: AdSetRow[] }>(key, fetcher, { revalidateOnFocus: false })
+  return useSWR<{ adsets: AdSetRow[] }>(key, fetcher, LIVE)
 }
 
 export function useAds(range: Range, account?: string, adset?: string, enabled = true) {
   const key = enabled
     ? `/api/meta/ads?range=${range}${acctParam(account)}${adset ? `&adset=${adset}` : ""}`
     : null
-  return useSWR<{ ads: AdRow[] }>(key, fetcher, { revalidateOnFocus: false })
+  return useSWR<{ ads: AdRow[] }>(key, fetcher, LIVE)
 }
 
 export type CreativeSort = "messages" | "spend" | "costPerMsg" | "ctr"
 
 export function useCreatives(range: Range, account?: string, sort: CreativeSort = "messages", limit = 24) {
   const key = `/api/meta/creatives?range=${range}${acctParam(account)}&sort=${sort}&limit=${limit}`
-  return useSWR<{ creatives: CreativeRow[]; accountId?: string }>(key, fetcher, {
-    revalidateOnFocus: false,
-  })
+  return useSWR<{ creatives: CreativeRow[]; accountId?: string }>(key, fetcher, LIVE)
 }

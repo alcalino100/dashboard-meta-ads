@@ -13,11 +13,14 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { fmtCurrency } from "@/lib/format"
+import { fmtCurrency, fmtNumber } from "@/lib/format"
 import { useStatus, useAccounts } from "@/lib/use-meta"
-import { useConnections, createItem, deleteItem, patchItem, testConnection, type Connection } from "@/lib/use-store"
+import { useConnections, useClients, createItem, deleteItem, patchItem, testConnection, type Connection } from "@/lib/use-store"
 import { mutate as globalMutate } from "swr"
-import { entities, syncJobs, metricDefs, messageMetrics, type JobStatus } from "@/lib/mock-data"
+import { entities, metricDefs } from "@/lib/mock-data"
+import { CONNECTION_STATUS, TONE_CLS, fmtDateTime } from "@/lib/connection-status"
+import { useFilters } from "@/lib/filters-context"
+import { useOverview } from "@/lib/use-meta"
 
 const REQUIRED_SCOPES = ["ads_read", "ads_management", "business_management"]
 
@@ -27,16 +30,9 @@ function accountStatusCfg(status: number) {
   return { label: "Pendente", cls: "text-warning", bg: "border-warning/20 bg-warning/10" }
 }
 
-const jobCfg: Record<JobStatus, { label: string; cls: string }> = {
-  queued: { label: "Em fila", cls: "bg-secondary text-secondary-foreground" },
-  processing: { label: "Processando", cls: "bg-primary/15 text-primary" },
-  success: { label: "Sucesso", cls: "bg-success/15 text-success" },
-  partial: { label: "Falha parcial", cls: "bg-warning/15 text-warning" },
-  failed: { label: "Falha total", cls: "bg-destructive/15 text-destructive" },
-}
-
 function TokenManager({ onRefetch }: { onRefetch: () => void }) {
   const { connections, isLoading } = useConnections()
+  const { clients } = useClients()
   const [showForm, setShowForm] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -45,13 +41,14 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
   const [label, setLabel] = useState("")
   const [appId, setAppId] = useState("")
   const [accessToken, setAccessToken] = useState("")
+  const [clientId, setClientId] = useState("")
   const [formError, setFormError] = useState("")
 
   const openForm = () => {
-    setLabel(""); setAppId(""); setAccessToken(""); setFormError(""); setShowForm(true)
+    setLabel(""); setAppId(""); setAccessToken(""); setClientId(""); setFormError(""); setShowForm(true)
   }
   const closeForm = () => {
-    setLabel(""); setAppId(""); setAccessToken(""); setFormError(""); setShowForm(false)
+    setLabel(""); setAppId(""); setAccessToken(""); setClientId(""); setFormError(""); setShowForm(false)
   }
 
   const refresh = async () => { await globalMutate("/api/store/connections"); onRefetch() }
@@ -64,7 +61,8 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
     try {
       const isFirst = connections.length === 0
       const created = await createItem("connections", {
-        name: label.trim(), app_id: appId.trim(), access_token: accessToken.trim(), status: "token_expired",
+        name: label.trim(), app_id: appId.trim(), access_token: accessToken.trim(),
+        client_id: clientId || null, status: "token_expired",
       })
       if (isFirst && created?.item?.id) {
         await patchItem("connections", { id: created.item.id, status: "connected" })
@@ -174,6 +172,20 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
                 />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <Label htmlFor="token-client" className="text-xs">Cliente (dono do App + token)</Label>
+                <select
+                  id="token-client"
+                  value={clientId}
+                  onChange={(e) => { setClientId(e.target.value); setFormError("") }}
+                  className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+                >
+                  <option value="">Sem cliente</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <Label htmlFor="token-value" className="text-xs">User Access Token *</Label>
                 <Input
                   id="token-value"
@@ -222,9 +234,10 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Nome</TableHead>
-                    <TableHead>App ID</TableHead>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>App ID</TableHead>
                     <TableHead>Token</TableHead>
                     <TableHead>Adicionado</TableHead>
                     <TableHead>Status</TableHead>
@@ -235,7 +248,7 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
                   {isLoading
                     ? [1, 2, 3].map((i) => (
                         <TableRow key={i}>
-                          {[1, 2, 3, 4, 5, 6].map((j) => (
+                          {[1, 2, 3, 4, 5, 6, 7].map((j) => (
                             <TableCell key={j}><div className="h-4 w-full animate-pulse rounded bg-muted" /></TableCell>
                           ))}
                         </TableRow>
@@ -243,6 +256,15 @@ function TokenManager({ onRefetch }: { onRefetch: () => void }) {
                     : connections.map((t) => (
                         <TableRow key={t.id}>
                           <TableCell className="font-medium text-foreground">{t.name}</TableCell>
+                          <TableCell className="text-xs">
+                            {t.client_id ? (
+                              <span className="rounded bg-primary/15 px-1.5 py-0.5 font-medium text-primary">
+                                {clients.find((c) => c.id === t.client_id)?.name ?? "—"}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="font-mono text-xs text-muted-foreground">{t.app_id ?? "—"}</TableCell>
                           <TableCell className="font-mono text-xs text-muted-foreground">{"••••••••••••"}</TableCell>
                           <TableCell className="text-xs text-muted-foreground tabular-nums">
@@ -492,49 +514,61 @@ function DataModel() {
 }
 
 function SyncJobs() {
+  // Sincronização REAL: estado de cada conexão (sem mocks).
+  const { connections, isLoading } = useConnections()
+  const { clients } = useClients()
   return (
     <Card className="overflow-hidden p-0">
       <CardHeader className="flex-row items-center justify-between p-4">
         <div>
-          <CardTitle className="text-base">Jobs de sincronização</CardTitle>
-          <CardDescription>Histórico de coleta por conta</CardDescription>
+          <CardTitle className="text-base">Sincronização por conexão</CardTitle>
+          <CardDescription>Os dados do dashboard são lidos ao vivo da Meta API a cada 90s</CardDescription>
         </div>
-        <Button size="sm" variant="outline" className="gap-1.5"><RefreshCw className="size-4" /> Sincronizar agora</Button>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Job</TableHead>
-                <TableHead>Conta</TableHead>
-                <TableHead>Janela</TableHead>
-                <TableHead className="text-right">Linhas</TableHead>
-                <TableHead className="text-right">Duração</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Concluído</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {syncJobs.map((j) => {
-                const cfg = jobCfg[j.status]
-                return (
-                  <TableRow key={j.id}>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{j.id}</TableCell>
-                    <TableCell className="font-medium text-foreground">{j.account}</TableCell>
-                    <TableCell className="text-muted-foreground">{j.window}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{j.rows.toLocaleString("pt-BR")}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">{j.duration}</TableCell>
-                    <TableCell>
-                      <span className={cn("inline-block rounded px-2 py-0.5 text-xs font-medium", cfg.cls)}>{cfg.label}</span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground tabular-nums">{j.finished}</TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Carregando...
+          </div>
+        ) : connections.length === 0 ? (
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            Nenhuma conexão cadastrada. Adicione um token na aba Conexões.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Conexão</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Último sync</TableHead>
+                  <TableHead>Último teste</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {connections.map((c) => {
+                  const cfg = CONNECTION_STATUS[c.status] ?? CONNECTION_STATUS.sync_error
+                  return (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium text-foreground">{c.name}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {c.client_id ? (clients.find((x) => x.id === c.client_id)?.name ?? "—") : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <span className={cn("inline-block rounded border px-2 py-0.5 text-xs font-medium", TONE_CLS[cfg.tone])}>
+                          {cfg.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="tabular-nums text-muted-foreground">{fmtDateTime(c.last_sync_at)}</TableCell>
+                      <TableCell className="tabular-nums text-muted-foreground">{fmtDateTime(c.last_test_at)}</TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -544,6 +578,16 @@ const groupLabels: Record<string, string> = { core: "Volume", efficiency: "Efici
 
 function Metrics() {
   const groups = ["core", "efficiency", "actions"]
+  // Métricas de mensagens REAIS do período/conta selecionados (nada mockado).
+  const { range, account, rangeLabel } = useFilters()
+  const { data: overview, isLoading: liveLoading } = useOverview(range, account)
+  const t = overview?.totals
+  const live = [
+    { label: "Conversas iniciadas", value: t ? fmtNumber(t.messages) : "—", key: "messaging_conversation_started" },
+    { label: "Custo por conversa", value: t && t.messages > 0 ? fmtCurrency(t.costPerMsg) : "—", key: "cost_per_messaging_conversation" },
+    { label: "Cliques no link", value: t ? fmtNumber(t.linkClicks) : "—", key: "inline_link_clicks" },
+    { label: "CPC (link)", value: t ? fmtCurrency(t.cpc) : "—", key: "cpc" },
+  ]
   return (
     <div className="flex flex-col gap-4">
       {groups.map((g) => (
@@ -564,11 +608,13 @@ function Metrics() {
       ))}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Métricas de mensagens</CardTitle>
-          <CardDescription>Conversas e custo por conversa (WhatsApp/Direct)</CardDescription>
+          <CardTitle className="text-base">Métricas de mensagens — ao vivo</CardTitle>
+          <CardDescription>
+            {liveLoading ? "Carregando..." : `${rangeLabel} · direto da Meta API`}
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {messageMetrics.map((m) => (
+          {live.map((m) => (
             <div key={m.key} className="rounded-md border border-border p-3">
               <p className="text-xs text-muted-foreground">{m.label}</p>
               <p className="text-lg font-semibold tabular-nums text-foreground">{m.value}</p>

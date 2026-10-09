@@ -9,6 +9,7 @@ import { MetaStatusBanner } from "./meta-status-banner"
 import { OverviewSection } from "./overview-section"
 import { HierarchySection } from "./hierarchy-section"
 import { CreativesSection } from "./creatives-section"
+import { ClientsSection } from "./clients-section"
 import { UsersSection } from "./users-section"
 import { AlertsSection } from "./alerts-section"
 import { AuditSection } from "./audit-section"
@@ -36,6 +37,8 @@ export function DashboardShell() {
         return <HierarchySection />
       case "Criativos":
         return <CreativesSection />
+      case "Clientes":
+        return <ClientsSection />
       case "Integrações":
         return <IntegrationsSection />
       case "Alertas":

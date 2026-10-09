@@ -8,6 +8,11 @@ const forbidden = () =>
 
 // Whitelist de tabelas e colunas graváveis (segurança)
 const TABLES: Record<string, { table: string; cols: string[]; order?: string }> = {
+  clients: {
+    table: "clients",
+    cols: ["name", "document", "email", "phone", "notes", "status"],
+    order: "created_at",
+  },
   goals: {
     table: "goals",
     cols: ["account_id", "account_name", "metric", "target", "current", "unit", "direction"],
@@ -25,7 +30,7 @@ const TABLES: Record<string, { table: string; cols: string[]; order?: string }> 
   },
   connections: {
     table: "connections",
-    cols: ["name", "business_id", "app_id", "access_token", "status"],
+    cols: ["name", "business_id", "app_id", "access_token", "status", "client_id"],
     order: "created_at",
   },
   audit: { table: "audit_logs", cols: ["actor", "action", "description", "account", "ip"], order: "created_at" },

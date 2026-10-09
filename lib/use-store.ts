@@ -64,6 +64,25 @@ export type AuditRow = {
   created_at: string
 }
 
+export type Client = {
+  id: string
+  name: string
+  document: string | null
+  email: string | null
+  phone: string | null
+  notes: string | null
+  status: "active" | "inactive"
+  created_at: string
+}
+
+export function useClients() {
+  const { data, error, isLoading } = useSWR<{ items: Client[] }>("/api/store/clients", fetcher, {
+    revalidateOnFocus: false,
+    refreshInterval: 120_000,
+  })
+  return { clients: data?.items ?? [], error, isLoading }
+}
+
 export type ConnectionStatus =
   | "connected"
   | "token_expired"
@@ -76,6 +95,7 @@ export type Connection = {
   name: string
   business_id: string | null
   app_id: string | null
+  client_id: string | null
   uses_env_token: boolean
   status: ConnectionStatus
   token_expires_at: string | null
@@ -151,6 +171,7 @@ export function useAudit() {
 export function useConnections() {
   const { data, error, isLoading } = useSWR<{ items: Connection[] }>("/api/store/connections", fetcher, {
     revalidateOnFocus: false,
+    refreshInterval: 120_000,
   })
   return { connections: data?.items ?? [], error, isLoading }
 }

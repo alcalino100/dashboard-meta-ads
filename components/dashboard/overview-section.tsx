@@ -18,10 +18,20 @@ export function OverviewSection() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Visão geral</h2>
           <p className="text-sm text-muted-foreground">
+            {data?.client ? `Cliente: ${data.client.name} · ` : ""}
             {rangeLabel}
             {data ? ` · ${data.accountsConsidered} conta(s) com gasto` : ""}
           </p>
         </div>
+        {data?.fetchedAt && (
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-success/20 bg-success/10 px-2 py-1 text-[11px] font-medium text-success">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-success" />
+            </span>
+            AO VIVO · {new Date(data.fetchedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </span>
+        )}
       </div>
 
       <ConnectionGate onGoToConnections={() => navigate("Integrações")}>

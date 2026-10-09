@@ -14,6 +14,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DateFilter } from "./date-filter"
 import { AccountFilter } from "./account-filter"
+import { ClientFilter } from "./client-filter"
 
 export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const { signOut, expire } = useAuth()
@@ -42,6 +43,7 @@ export function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         </div>
 
         <div className="hidden flex-wrap items-center gap-2 md:flex">
+          <ClientFilter />
           <AccountFilter />
           <DateFilter />
           {compare && (

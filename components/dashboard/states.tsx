@@ -137,6 +137,36 @@ export function InlineLoading({ label = "Carregando dados reais..." }: { label?:
   )
 }
 
+// ── Vazio com ação (listas sem itens) ───────────────────────
+export function DataEmptyState({
+  icon: Icon,
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  icon: LucideIcon
+  title: string
+  description: string
+  actionLabel?: string
+  onAction?: () => void
+}) {
+  return (
+    <StateCard
+      icon={Icon}
+      title={title}
+      description={description}
+      action={
+        actionLabel && onAction ? (
+          <Button size="sm" className="gap-1.5" onClick={onAction}>
+            {actionLabel}
+          </Button>
+        ) : undefined
+      }
+    />
+  )
+}
+
 // Aliases simplificados usados pelos módulos
 export function ErrorState({ message, code, onRetry }: { message: string; code?: number | null; onRetry?: () => void }) {
   return <ApiErrorState message={message} code={code} onRetry={onRetry} />

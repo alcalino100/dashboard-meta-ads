@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getAdAccounts, getAccountInsights, getDailyTrend, MetaApiError, type Insights } from "@/lib/meta-api"
+import { getAdAccounts, getAccountInsights, getDailyTrend, getActiveClient, MetaApiError, type Insights } from "@/lib/meta-api"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -74,6 +74,8 @@ export async function GET(req: Request) {
       accountShare,
       trend,
       accountsConsidered: spenders.length,
+      client: (await getActiveClient()).client,
+      fetchedAt: new Date().toISOString(),
     })
   } catch (e) {
     const err = e as MetaApiError

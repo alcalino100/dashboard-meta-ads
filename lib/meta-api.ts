@@ -37,6 +37,35 @@ export async function token() {
   return t
 }
 
+// Cliente dono da conexão ativa (para exibir "você está vendo dados de X").
+// Retorna nulls quando a migration 002 ainda não foi aplicada — nunca quebra.
+export type ActiveClient = { id: string; name: string } | null
+
+export async function getActiveClient(): Promise<{ connectionId: string | null; client: ActiveClient }> {
+  if (!isSupabaseConfigured()) return { connectionId: null, client: null }
+  try {
+    const { data: conn } = await supabaseAdmin()
+      .from("connections")
+      .select("id, client_id")
+      .eq("status", "connected")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const c = conn as { id?: string; client_id?: string | null } | null
+    if (!c?.client_id) return { connectionId: c?.id ?? null, client: null }
+    const { data: cli } = await supabaseAdmin()
+      .from("clients")
+      .select("id, name")
+      .eq("id", c.client_id)
+      .maybeSingle()
+    const cl = cli as { id?: string; name?: string } | null
+    if (!cl?.id) return { connectionId: c.id ?? null, client: null }
+    return { connectionId: c.id ?? null, client: { id: cl.id, name: cl.name ?? "Cliente" } }
+  } catch {
+    return { connectionId: null, client: null }
+  }
+}
+
 async function graph<T = any>(path: string, params: Record<string, string> = {}): Promise<T> {
   const url = new URL(`${BASE}/${path}`)
   url.searchParams.set("access_token", await token())

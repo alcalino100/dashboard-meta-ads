@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import {
-  useConnections, createItem, patchItem, deleteItem, testConnection, type Connection,
+  useConnections, useClients, createItem, patchItem, deleteItem, testConnection, type Connection,
 } from "@/lib/use-store"
 import { CONNECTION_STATUS, TONE_CLS, fmtDateTime } from "@/lib/connection-status"
 import { LoadingState, ErrorState, DataEmptyState } from "./states"
@@ -35,11 +35,12 @@ function StatusBadge({ status }: { status: Connection["status"] }) {
   )
 }
 
-type FormState = { name: string; business_id: string; app_id: string; access_token: string }
-const EMPTY: FormState = { name: "", business_id: "", app_id: "", access_token: "" }
+type FormState = { name: string; business_id: string; app_id: string; access_token: string; client_id: string }
+const EMPTY: FormState = { name: "", business_id: "", app_id: "", access_token: "", client_id: "" }
 
 export function ConnectionsManager() {
   const { connections, isLoading, error } = useConnections()
+  const { clients } = useClients()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Connection | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
@@ -58,7 +59,7 @@ export function ConnectionsManager() {
 
   const openEdit = (c: Connection) => {
     setEditing(c)
-    setForm({ name: c.name, business_id: c.business_id ?? "", app_id: c.app_id ?? "", access_token: "" })
+    setForm({ name: c.name, business_id: c.business_id ?? "", app_id: c.app_id ?? "", access_token: "", client_id: c.client_id ?? "" })
     setFormError("")
     setDialogOpen(true)
   }
@@ -67,6 +68,7 @@ export function ConnectionsManager() {
     if (!form.name.trim()) return setFormError("Informe um nome para a conexão.")
     setFormError("")
     setSaving(true)
+    const client_id = form.client_id || null
     try {
       if (editing) {
         await patchItem("connections", {
@@ -74,6 +76,7 @@ export function ConnectionsManager() {
           name: form.name,
           business_id: form.business_id || null,
           app_id: form.app_id || null,
+          client_id,
           ...(form.access_token ? { access_token: form.access_token } : {}),
         })
       } else {
@@ -86,6 +89,7 @@ export function ConnectionsManager() {
           business_id: form.business_id || null,
           app_id: form.app_id || null,
           access_token: form.access_token,
+          client_id,
           status: "connected",
         })
       }
@@ -164,9 +168,14 @@ export function ConnectionsManager() {
                     <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-md border", TONE_CLS[cfg.tone])}>
                       <Plug className="size-5" />
                     </span>
-                    <div className="min-w-0 leading-tight">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-foreground">{c.name}</p>
+                      <div className="min-w-0 leading-tight">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-foreground">{c.name}</p>
+                          {c.client_id && (
+                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              {clients.find((x) => x.id === c.client_id)?.name ?? "Cliente"}
+                            </span>
+                          )}
                         {c.uses_env_token && (
                           <span className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground">
                             <Lock className="size-3" /> Principal
@@ -221,6 +230,19 @@ export function ConnectionsManager() {
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm">Nome</Label>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex.: Colucci Imob" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm">Cliente (dono do App + token)</Label>
+              <select
+                value={form.client_id}
+                onChange={(e) => setForm({ ...form, client_id: e.target.value })}
+                className="rounded-md border border-border bg-background px-2 py-2 text-sm"
+              >
+                <option value="">Sem cliente</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-1.5">

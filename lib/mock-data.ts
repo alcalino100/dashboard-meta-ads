@@ -286,7 +286,7 @@ export const accountPermissions = users.map((u, i) => ({
 
 // rótulos de navegação
 export const navItems = [
-  "Overview", "Campanhas", "Criativos", "Integrações", "Regras", "Alertas",
+  "Overview", "Campanhas", "Criativos", "Clientes", "Integrações", "Regras", "Alertas",
   "Metas", "Inteligência", "Usuários", "Auditoria", "Configurações",
 ] as const
 export type NavItem = (typeof navItems)[number]
